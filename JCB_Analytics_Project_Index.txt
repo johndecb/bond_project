@@ -1,0 +1,81 @@
+
+📚 JCB Analytics Project Index (as of 4 June 2025)
+
+📁 Project Structure
+
+Instrument & Data Tables
+- instruments: static bond info (ISIN, name, coupon, etc.)
+- instrument_data: time series (e.g. amount outstanding, yield)
+- Hybrid schema supports both daily and irregular data
+
+Core Functions
+- row_bond_to_instrument(row) → Instrument object
+- save_instrument(conn, instrument) inserts or skips
+- row_bond_to_instrument_data(row, data_date) → list of InstrumentData
+- insert_instrument_data(conn, InstrumentData) handles dynamic inserts
+- check_instruments_schema, check_instrument_data_schema for validation
+
+CLI
+- Defined in run_cli.py
+- Commands:
+  - load-tradeweb → lets you pick a Tradeweb file to load
+  - validate-schema
+  - list-instruments
+  - show-instrument <isin>
+  - show-history <isin>
+
+📥 Data Sources
+
+DMO Spreadsheets
+- Static: issue date, coupon, base RPI
+- Dynamic: amount outstanding, parsed via row_bond_to_instrument_data
+- Data Date extracted from cell A1
+
+Tradeweb
+- CSVs saved to tradeweb_data/
+- 5-day limited bulk history (per ISIN is full)
+- Loader with interactive CLI prompt
+
+🧪 Data Loading & Logging
+
+- Counts for inserted/skipped static and dynamic records
+- Errors captured by ISIN
+- Validations with check_instruments_schema() and similar
+
+📊 Visualisation
+
+- Early testing via Jupyter Notebook plots
+- Plan to build into CLI or Excel export
+
+🌐 API & Excel Integration
+
+FastAPI
+- /instrument-data?isin=...&data_type=... returns latest value
+- Used for external access (e.g. Excel, apps)
+
+Excel Integration
+- Mac Excel (deprecated):
+  - Used MacScript to run curl – slow and messy
+- Windows + xlwings (current path):
+  - Python script jcb_analytics.py with:
+    - main() connection test
+    - jGet_Instrument_Data(isin, data_type='amount_outstanding')
+  - VBA kept minimal
+  - Using @xw.func decorators to expose Python to Excel
+
+⚙️ Environment Setup
+
+- macOS: Used for initial development and FastAPI
+- Windows Emulator: New target environment with:
+  - Excel + xlwings full functionality
+  - Anaconda to be installed
+  - Goal: better Excel interop and performance
+
+✅ Current Status Summary
+
+- Data models and schema validated
+- CLI fully operational
+- Tradeweb and DMO data loading
+- Initial FastAPI endpoint working
+- Excel integration migrated to Windows
+- Next: Expand Excel data functions (e.g., historical data pull, bulk loads)

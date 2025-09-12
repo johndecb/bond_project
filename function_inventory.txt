@@ -1,0 +1,76 @@
+
+validate_schema.py
+  functions: check_instrument_schema, check_instrument_data_schema
+
+run_cli.py
+  functions: list_instruments, show_instrument, show_history, validate_schema, load_tradeweb_cli
+
+list_funcs.py
+  functions: parse_file
+
+migrate_schema.py
+  functions: backup_db, table_exists, columns_of, safe_val, migrate
+
+api_server.py
+  functions: get_instrument_data
+
+database/normalise_types.py
+  functions: ensure_map_table, seed_mappings, normalise_instrument_data, swap_instrument_data, create_audit_view
+
+database/db.py
+  functions: connect, get_conn
+
+database/query.py
+  functions: _coerce_bool, _coerce_date, _row_to_instrument, load_instrument_data, _iso, get_instrument, list_instruments, list_instruments, resolve_isin_from_alt_id, _to_date, get_holidays_for_calendar, _to_list, _iso, _parse
+
+database/insert.py
+  functions: _iso, _instrument_to_params, save_instrument, update_instrument_field_by_id, insert_instrument_data, bulk_insert_instrument_data, insert_instrument_identifier, insert_calendar_holidays
+
+database/schema.py
+  functions: create_instruments_table, create_instrument_data_table, create_instrument_identifier_table, create_calendar_holidays_table
+
+core/startup.py
+  functions: setup_database, validate_database_schema
+
+cashflow_model/builders.py
+  functions: cashflows_from_instrument, cashflows_df, cashflow_matrix, generate_target_cashflows
+
+cashflow_model/conv_bond_model.py
+  functions: _coerce_date, __init__, _adjust, _days, _regular_period_days, _accrual_factor, _coupon_amount, _months_per_period, _find_period_row, _ex_div_date, _pv_dirty_from_yield, dirty_price_from_yield, clean_price_from_yield, accrued_interest, yield_from_clean_price, generate_cashflow_schedule, f
+  class CashflowModel -> methods: __init__, _adjust, _days, _regular_period_days, _accrual_factor, _coupon_amount, _months_per_period, _find_period_row, _ex_div_date, _pv_dirty_from_yield, dirty_price_from_yield, clean_price_from_yield, accrued_interest, yield_from_clean_price, generate_cashflow_schedule
+
+tests/test_smoke.py
+  functions: _bootstrap_schema, test_instrument_roundtrip, test_identifiers_and_holidays, test_timeseries_roundtrip
+
+utils/identifiers.py
+  functions: generate_jcb_isin
+
+utils/jcb_calendar.py
+  functions: _ensure_date, adjust_to_business_day, is_business_day, __init__, is_business_day, adjust, workday, next_business_day, previous_business_day, shift_business_days, business_days_between
+  class BusinessDayCalendar -> methods: __init__, is_business_day, adjust, workday, next_business_day, previous_business_day, shift_business_days, business_days_between
+
+models/instrument_data.py
+
+models/instrument.py
+  functions: __post_init__
+  class Instrument -> methods: __post_init__
+
+models/cashflows.py
+
+jcb_analytics/jcb_analytics.py
+  functions: main, jGet_Instrument_Data
+
+loaders/load_bonds.py
+  functions: is_isin, row_bond_to_instrument, row_bond_to_instrument_data, load_bonds_from_excel
+
+loaders/classify.py
+  functions: parse_coupon_decimal, short_bond_code, classify_bond
+
+loaders/load_tradeweb.py
+  functions: _find_col, _parse_ddmmyyyy, _fetch_mapping, load_tradeweb_csv_mapped
+
+loaders/load_bbergexcel.py
+  functions: load_bberg_excel
+
+loaders/compare_sources.py
+  functions: compare_source_series
