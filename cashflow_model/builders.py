@@ -7,6 +7,7 @@ from models.instrument import Instrument
 from cashflow_model.conv_bond_model import CashflowModel, CashflowRow
 from dateutil.relativedelta import relativedelta
 
+
 def cashflows_from_instrument(
     inst: Instrument,
     *,
