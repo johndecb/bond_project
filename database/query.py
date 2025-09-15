@@ -350,3 +350,50 @@ def get_holidays_for_calendar(conn: sqlite3.Connection, calendar_name: str, _deb
     rows = conn.execute(sql, params).fetchall()
     # If row_factory=sqlite3.Row (as in your connect()), both r[0] and r["holiday_date"] work:
     return [_to_date(r["holiday_date"]) for r in rows]  # or r[0]
+
+def inspect_schema(conn, save_path: str = None):
+    """
+    Inspect SQLite schema: print, return dict, and optionally save to file.
+    
+    Args:
+        conn: sqlite3.Connection
+        save_path: optional path to save schema as text file
+    
+    Returns:
+        dict with structure {table_name: [{"name": col_name, "type": col_type, "pk": bool, "notnull": bool, "default": value}, ...]}
+    """
+    cursor = conn.cursor()
+
+    # List all tables
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tables = [row[0] for row in cursor.fetchall()]
+
+    schema = {}
+    output_lines = ["📋 Tables in database:"]
+
+    for table in tables:
+        output_lines.append(f"\n== {table} ==")
+        cursor.execute(f"PRAGMA table_info({table});")
+        columns = []
+        for cid, name, col_type, notnull, default, pk in cursor.fetchall():
+            col_info = {
+                "name": name,
+                "type": col_type,
+                "pk": bool(pk),
+                "notnull": bool(notnull),
+                "default": default,
+            }
+            columns.append(col_info)
+            output_lines.append(f" - {name} ({col_type}){' [PK]' if pk else ''}")
+        schema[table] = columns
+
+    # Print to console
+    print("\n".join(output_lines))
+
+    # Save to file if requested
+    if save_path:
+        with open(save_path, "w") as f:
+            f.write("\n".join(output_lines))
+        print(f"\n💾 Schema saved to {save_path}")
+
+    return schema

@@ -1,0 +1,53 @@
+📋 Tables in database:
+
+== instruments ==
+ - isin (TEXT) [PK]
+ - short_code (TEXT)
+ - name (TEXT)
+ - instrument_type (TEXT)
+ - issuer (TEXT)
+ - country (TEXT)
+ - currency (TEXT)
+ - maturity_date (DATE)
+ - first_issue_date (DATE)
+ - coupon_rate (REAL)
+ - first_coupon_length (TEXT)
+ - is_green (BOOLEAN)
+ - is_linker (BOOLEAN)
+ - index_lag (INTEGER)
+ - rpi_base (REAL)
+ - tenor (TEXT)
+ - reference_index (TEXT)
+ - day_count_fraction (TEXT)
+
+== instrument_identifiers ==
+ - instrument_id (TEXT) [PK]
+ - identifier_string (TEXT) [PK]
+ - identifier_source (TEXT) [PK]
+
+== calendar_holidays ==
+ - id (INTEGER) [PK]
+ - calendar_name (TEXT)
+ - holiday_date (DATE)
+ - description (TEXT)
+
+== sqlite_sequence ==
+ - name ()
+ - seq ()
+
+== data_type_map ==
+ - source (TEXT) [PK]
+ - raw_data_type (TEXT) [PK]
+ - canonical_data_type (TEXT)
+ - default_unit (TEXT)
+ - note (TEXT)
+
+== instrument_data ==
+ - instrument_id (TEXT) [PK]
+ - data_date (DATE) [PK]
+ - data_type (TEXT) [PK]
+ - value (REAL)
+ - source (TEXT) [PK]
+ - resolution (TEXT) [PK]
+ - unit (TEXT)
+ - attrs (TEXT)
