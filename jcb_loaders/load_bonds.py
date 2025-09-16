@@ -1,11 +1,11 @@
 import pandas as pd
 import sqlite3
 
-from models.instrument import Instrument #Gets the class definition for Instrument from the models file
-from models.instrument_data import InstrumentData
-from database.insert import save_instrument #this is the function to load the instrument data to the database
-from database.insert import insert_instrument_data
-from loaders.classify import classify_bond  #classify is a module that has some ways to filter and clean the spreadsheet information
+from jcb_bond_project.models.instrument import Instrument #Gets the class definition for Instrument from the models file
+from jcb_bond_project.models.instrument_data import InstrumentData
+from jcb_bond_project.database.insert import save_instrument #this is the function to load the instrument data to the database
+from jcb_bond_project.database.insert import insert_instrument_data
+from jcb_bond_project.loaders.classify import classify_bond  #classify is a module that has some ways to filter and clean the spreadsheet information
 
 import re
 

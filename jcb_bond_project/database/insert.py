@@ -7,8 +7,8 @@ from dataclasses import asdict
 from datetime import date, datetime
 from typing import Dict, Any, Iterable, Optional, Tuple
 
-from models.instrument import Instrument
-from models.instrument_data import InstrumentData
+from jcb_bond_project.jcb_bond_project.models.instrument import Instrument
+from jcb_bond_project.jcb_bond_project.models.instrument_data import InstrumentData
 
 
 # ------------ helpers ------------

@@ -1,6 +1,6 @@
 import sqlite3
-from database.schema import create_instruments_table, create_instrument_data_table
-from validate_schema import check_instrument_schema, check_instrument_data_schema
+from jcb_bond_project.database.schema import create_instruments_table, create_instrument_data_table
+from jcb_bond_project.validate_schema import check_instrument_schema, check_instrument_data_schema
 
 def setup_database(db_path):
     create_instruments_table(db_path)

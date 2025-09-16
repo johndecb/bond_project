@@ -1,9 +1,9 @@
 import argparse
 import sqlite3
 import pandas as pd
-from validate_schema import check_instrument_schema, check_instrument_data_schema
+from jcb_bond_project.validate_schema import check_instrument_schema, check_instrument_data_schema
 import os
-from loaders.load_tradeweb import load_tradeweb_csv
+from jcb_bond_project.loaders.load_tradeweb import load_tradeweb_csv
 
 DB_PATH = 'jcb_db.db'
 

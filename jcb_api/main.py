@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from typing import List
 import pandas as pd
 
-from portfolio.builders import build_portfolio
+from jcb_bond_project.portfolio.builders import build_portfolio
 
 app = FastAPI(title="Bond Project API")
 

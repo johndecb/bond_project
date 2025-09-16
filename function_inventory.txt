@@ -11,9 +11,6 @@ list_funcs.py
 migrate_schema.py
   functions: backup_db, table_exists, columns_of, safe_val, migrate
 
-api_server.py
-  functions: get_instrument_data
-
 database/normalise_types.py
   functions: ensure_map_table, seed_mappings, normalise_instrument_data, swap_instrument_data, create_audit_view
 
@@ -21,7 +18,7 @@ database/db.py
   functions: connect, get_conn
 
 database/query.py
-  functions: _coerce_bool, _coerce_date, _row_to_instrument, load_instrument_data, _iso, get_instrument, list_instruments, list_instruments, resolve_isin_from_alt_id, _to_date, get_holidays_for_calendar, _to_list, _iso, _parse
+  functions: _coerce_bool, _coerce_date, _row_to_instrument, load_instrument_data, _iso, get_instrument, list_instruments, list_instruments, resolve_isin_from_alt_id, _to_date, get_holidays_for_calendar, inspect_schema, _to_list, _iso, _parse
 
 database/insert.py
   functions: _iso, _instrument_to_params, save_instrument, update_instrument_field_by_id, insert_instrument_data, bulk_insert_instrument_data, insert_instrument_identifier, insert_calendar_holidays
@@ -29,11 +26,17 @@ database/insert.py
 database/schema.py
   functions: create_instruments_table, create_instrument_data_table, create_instrument_identifier_table, create_calendar_holidays_table
 
+api/main.py
+  functions: get_cashflows
+
+portfolio/builders.py
+  functions: build_portfolio
+
 core/startup.py
   functions: setup_database, validate_database_schema
 
 cashflow_model/builders.py
-  functions: cashflows_from_instrument, cashflows_df, cashflow_matrix, generate_target_cashflows
+  functions: cashflows_from_instrument, cashflows_df, cashflow_matrix, generate_target_cashflows, filter_bonds_by_maturity, calculate_running_totals, solve_portfolio_weights, create_unified_timeline, to_date
 
 cashflow_model/conv_bond_model.py
   functions: _coerce_date, __init__, _adjust, _days, _regular_period_days, _accrual_factor, _coupon_amount, _months_per_period, _find_period_row, _ex_div_date, _pv_dirty_from_yield, dirty_price_from_yield, clean_price_from_yield, accrued_interest, yield_from_clean_price, generate_cashflow_schedule, f

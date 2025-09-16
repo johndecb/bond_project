@@ -3,29 +3,29 @@ from datetime import date, timedelta
 
 import pandas as pd
 
-from database.db import connect
-from database.schema import (
+from jcb_bond_project.jcb_bond_project.database.db import connect
+from jcb_bond_project.jcb_bond_project.database.schema import (
     create_instruments_table,
     create_instrument_data_table,
     create_instrument_identifier_table,
     create_calendar_holidays_table,
 )
-from database.insert import (
+from jcb_bond_project.jcb_bond_project.database.insert import (
     save_instrument,
     insert_instrument_identifier,
     insert_calendar_holidays,
     insert_instrument_data,
     update_instrument_field_by_id,
 )
-from database.query import (
+from jcb_bond_project.jcb_bond_project.database.query import (
     get_instrument,
     list_instruments,
     load_instrument_data,
     resolve_isin_from_alt_id,
     get_holidays_for_calendar,
 )
-from models.instrument import Instrument
-from models.instrument_data import InstrumentData
+from jcb_bond_project.jcb_bond_project.models.instrument import Instrument
+from jcb_bond_project.jcb_bond_project.models.instrument_data import InstrumentData
 
 
 def _bootstrap_schema(conn):

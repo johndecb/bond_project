@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jcb_bond_project"
+version = "0.1.0"
+description = "Bond analytics and cashflow modelling"
+authors = [{name = "Your Name"}]
+dependencies = [
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "sqlalchemy",
+    "psycopg2-binary",
+    "django>=5.0"
+]
+
+[tool.setuptools.packages.find]
+include = ["jcb_bond_project*", "jcb_loaders*", "jcb_api*", "jcb_core*"]
+

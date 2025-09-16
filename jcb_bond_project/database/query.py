@@ -4,7 +4,7 @@ import pandas as pd
 from dataclasses import fields
 from datetime import date
 from typing import Optional, Sequence, Dict, Any, Union, List
-from models.instrument import Instrument
+from jcb_bond_project.jcb_bond_project.models.instrument import Instrument
 
 def _coerce_bool(x):
     if x is None:

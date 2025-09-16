@@ -6,9 +6,9 @@ from typing import Dict, Iterable, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from database.db import get_conn
-from models.instrument_data import InstrumentData
-from database.insert import insert_instrument_data
+from jcb_bond_project.database.db import get_conn
+from jcb_bond_project.models.instrument_data import InstrumentData
+from jcb_bond_project.database.insert import insert_instrument_data
 
 DATE_COLS = ["Close of Business Date", "COB Date", "Date"]
 ISIN_COLS = ["ISIN", "Instrument", "Instrument ID"]

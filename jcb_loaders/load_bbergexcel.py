@@ -1,6 +1,6 @@
 import pandas as pd
 import sqlite3
-from database.insert import insert_instrument_data
+from jcb_bond_project.database.insert import insert_instrument_data
 
 def load_bberg_excel(file_path):
     df = pd.read_csv(file_path)
