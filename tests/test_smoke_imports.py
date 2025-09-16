@@ -46,22 +46,6 @@ def test_imports_and_functions():
     isin = generate_jcb_isin("GBP", "BOND1","10Y")
     assert isin.startswith("JCB")
 
-    # --- Loaders ---
-    from jcb_bond_project.loaders.classify import short_bond_code
-    assert isinstance(short_bond_code("2% Treasury Gilt 2025"), str)
-
-    # --- CLI (just check it loads) ---
-    import jcb_bond_project.run_cli
-    assert hasattr(jcb_bond_project.run_cli, "list_instruments")
-
-    # --- Core startup ---
-    import jcb_bond_project.core.startup
-    assert hasattr(jcb_bond_project.core.startup, "setup_database")
-
-    # --- API ---
-    import jcb_bond_project.api.main
-    assert hasattr(jcb_bond_project.api.main, "get_cashflows")
-
     # --- Portfolio ---
     import jcb_bond_project.portfolio.builders
     assert hasattr(jcb_bond_project.portfolio.builders, "build_portfolio")

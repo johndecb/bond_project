@@ -1,5 +1,5 @@
 import sqlite3
-from jcb_bond_project.jcb_bond_project.models.instrument import Instrument
+from jcb_bond_project.models.instrument import Instrument
 
 def check_instrument_schema(conn):
     cursor = conn.cursor()
