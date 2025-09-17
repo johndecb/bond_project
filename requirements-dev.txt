@@ -1,0 +1,11 @@
+-r requirements.txt
+
+# Testing
+pytest>=8.0
+
+# Plotting
+matplotlib>=3.9
+
+# Dev tools
+ipython
+black

@@ -5,7 +5,7 @@ from jcb_bond_project.models.instrument import Instrument #Gets the class defini
 from jcb_bond_project.models.instrument_data import InstrumentData
 from jcb_bond_project.database.insert import save_instrument #this is the function to load the instrument data to the database
 from jcb_bond_project.database.insert import insert_instrument_data
-from jcb_bond_project.loaders.classify import classify_bond  #classify is a module that has some ways to filter and clean the spreadsheet information
+from jcb_loaders.classify import classify_bond  #classify is a module that has some ways to filter and clean the spreadsheet information
 
 import re
 

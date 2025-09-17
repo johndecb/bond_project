@@ -4,7 +4,7 @@ from math import isfinite
 from datetime import date, datetime, timedelta
 from typing import List, Dict, Optional, Literal
 from dateutil.relativedelta import relativedelta
-from jcb_bond_project.jcb_bond_project.models.cashflows import CashflowRow
+from jcb_bond_project.models.cashflows import CashflowRow
 
 def _coerce_date(x) -> date:
     """

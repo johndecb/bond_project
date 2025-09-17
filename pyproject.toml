@@ -16,6 +16,12 @@ dependencies = [
     "django>=5.0"
 ]
 
+# 🔑 Optional extras for dev
+[project.optional-dependencies]
+loaders = []
+core = []
+
 [tool.setuptools.packages.find]
-include = ["jcb_bond_project*", "jcb_loaders*", "jcb_api*", "jcb_core*"]
+include = ["jcb_bond_project*", "jcb_api*"]
+
 

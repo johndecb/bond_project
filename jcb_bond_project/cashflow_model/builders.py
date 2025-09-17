@@ -3,8 +3,8 @@ from typing import List, Dict, Optional, Any
 import pandas as pd
 import numpy as np
 
-from jcb_bond_project.jcb_bond_project.models.instrument import Instrument
-from jcb_bond_project.jcb_bond_project.cashflow_model.conv_bond_model import CashflowModel, CashflowRow
+from jcb_bond_project.models.instrument import Instrument
+from jcb_bond_project.cashflow_model.conv_bond_model import CashflowModel, CashflowRow
 from dateutil.relativedelta import relativedelta
 
 

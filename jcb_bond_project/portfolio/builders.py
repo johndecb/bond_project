@@ -1,10 +1,10 @@
 import numpy as np
 import pandas as pd
 from datetime import date, datetime
-from jcb_bond_project.jcb_bond_project.database.db import get_conn
-from jcb_bond_project.jcb_bond_project.database.query import list_instruments, get_instrument, get_holidays_for_calendar
-from jcb_bond_project.jcb_bond_project.utils.jcb_calendar import BusinessDayCalendar
-from jcb_bond_project.jcb_bond_project.cashflow_model.builders import (
+from jcb_bond_project.database.db import get_conn
+from jcb_bond_project.database.query import list_instruments, get_instrument, get_holidays_for_calendar
+from jcb_bond_project.utils.jcb_calendar import BusinessDayCalendar
+from jcb_bond_project.cashflow_model.builders import (
     cashflows_df, 
     cashflow_matrix,
     filter_bonds_by_maturity,

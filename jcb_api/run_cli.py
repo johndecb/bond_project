@@ -3,7 +3,6 @@ import sqlite3
 import pandas as pd
 from jcb_bond_project.validate_schema import check_instrument_schema, check_instrument_data_schema
 import os
-from jcb_bond_project.loaders.load_tradeweb import load_tradeweb_csv
 
 DB_PATH = 'jcb_db.db'
 
@@ -39,23 +38,6 @@ def validate_schema():
     check_instrument_data_schema(conn)
     conn.close()
 
-def load_tradeweb_cli():
-    folder = "tradeweb_data"
-    files = [f for f in os.listdir(folder) if f.lower().endswith(".csv") or f.lower().endswith(".xlsx")]
-
-    if not files:
-        print("❌ No Tradeweb files found in 'tradeweb_data/'.")
-    else:
-        print("📁 Available Tradeweb files:")
-        for i, f in enumerate(files, 1):
-            print(f"{i}: {f}")
-        try:
-            choice = int(input("Select file number to load: "))
-            selected = files[choice - 1]
-            print(f"\n📂 Loading: {selected}")
-            load_tradeweb_csv(os.path.join(folder, selected))
-        except (ValueError, IndexError):
-            print("❌ Invalid selection.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CLI for managing and viewing instrument data.")
@@ -83,7 +65,5 @@ if __name__ == "__main__":
         show_history(args.isin)
     elif args.command == "validate-schema":
         validate_schema()
-    elif args.command == "load-tradeweb":
-        load_tradeweb_cli()
     else:
         parser.print_help()
