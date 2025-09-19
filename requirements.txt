@@ -14,3 +14,7 @@ sqlalchemy>=2.0
 python-dateutil>=2.9
 pytz>=2024.1
 tzdata>=2024.1
+
+fastapi
+uvicorn[standard]
+
