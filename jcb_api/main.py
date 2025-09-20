@@ -12,6 +12,10 @@ class PortfolioRequest(BaseModel):
     start: date
     tenor: int   # years
 
+@app.get("/")
+def root():
+    return {"status": "ok"}
+
 @app.post("/portfolio/summary")
 def get_portfolio_summary(req: PortfolioRequest):
     settlement = date.today() + timedelta(days=1)
