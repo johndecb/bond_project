@@ -1,11 +1,13 @@
+import os
 import numpy as np
 import pandas as pd
 from datetime import date, datetime
+
 from jcb_bond_project.database.db import get_conn
-from jcb_bond_project.database.query import list_instruments, get_instrument, get_holidays_for_calendar
+from jcb_bond_project.database.query import list_instruments, get_holidays_for_calendar
 from jcb_bond_project.utils.jcb_calendar import BusinessDayCalendar
 from jcb_bond_project.cashflow_model.builders import (
-    cashflows_df, 
+    cashflows_df,
     cashflow_matrix,
     filter_bonds_by_maturity,
     generate_target_cashflows,
@@ -14,7 +16,9 @@ from jcb_bond_project.cashflow_model.builders import (
     create_unified_timeline,
 )
 
-DB_PATH = "jcb_db.db"
+# Get DB connection string (Postgres on Render, fallback to SQLite locally)
+DB_PATH = os.getenv("DATABASE_URL", "jcb_db.db")
+
 
 def build_portfolio(
     select_start_date: date | datetime,
@@ -29,15 +33,17 @@ def build_portfolio(
     """Construct portfolio weights for target cashflows."""
     # 1. Load and filter bonds
     with get_conn(DB_PATH) as conn:
-        raw = list_instruments(
+        bonds = list_instruments(
             conn,
             instrument_types=["bond"],
             country=country,
             is_green=is_green,
             is_linker=is_linker,
         )
-        bonds = [r if hasattr(r, "instrument_type") else get_instrument(conn, r) for r in raw]
         uk = BusinessDayCalendar(set(get_holidays_for_calendar(conn, country)))
+
+    if not bonds:
+        raise ValueError("No bonds found in database for given filters")
 
     # 2. Filter bonds by maturity
     filtered_bonds = filter_bonds_by_maturity(bonds, settlement_date, select_end_date)

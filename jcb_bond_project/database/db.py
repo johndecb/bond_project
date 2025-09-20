@@ -2,11 +2,7 @@
 import os, psycopg2
 from contextlib import contextmanager
 
-def connect(database_url=None):
-    if database_url is None:
-        database_url = os.getenv("DATABASE_URL")
-        if not database_url:
-            raise RuntimeError("DATABASE_URL not set")
+def connect(database_url: str):
     return psycopg2.connect(database_url)
 
 @contextmanager
