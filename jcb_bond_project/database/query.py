@@ -1,10 +1,19 @@
+# database/query.py
+
 from __future__ import annotations
-import sqlite3, json
+
+import json
 import pandas as pd
 from dataclasses import fields
 from datetime import date
 from typing import Optional, Sequence, Dict, Any, Union, List
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
 from jcb_bond_project.models.instrument import Instrument
+
+
+# ------------ helpers ------------
 
 def _coerce_bool(x):
     if x is None:
@@ -16,21 +25,18 @@ def _coerce_bool(x):
     except Exception:
         return bool(x)
 
-
 def _coerce_date(x):
     if x is None or isinstance(x, date):
         return x
     try:
-        # handles 'YYYY-MM-DD...' strings
         return date.fromisoformat(str(x)[:10])
     except Exception:
         return None
 
+def _row_to_instrument(row_dict: Dict[str, Any]) -> Instrument:
+    """Convert DB row dict -> Instrument dataclass"""
+    data = dict(row_dict)
 
-def _row_to_instrument(row_tuple, col_names) -> Instrument:
-    data = dict(zip(col_names, row_tuple))
-
-    # normalise common types
     for k in ("is_green", "is_linker"):
         if k in data:
             data[k] = _coerce_bool(data[k])
@@ -39,13 +45,15 @@ def _row_to_instrument(row_tuple, col_names) -> Instrument:
         if k in data:
             data[k] = _coerce_date(data[k])
 
-    # keep only fields defined on the dataclass
     inst_field_names = {f.name for f in fields(Instrument)}
     kwargs = {k: v for k, v in data.items() if k in inst_field_names}
     return Instrument(**kwargs)
 
+
+# ------------ instrument_data ------------
+
 def load_instrument_data(
-    conn: sqlite3.Connection,
+    conn,
     instrument_id: str,
     source: Optional[Union[str, Sequence[str]]] = None,
     data_type: Optional[Union[str, Sequence[str]]] = None,
@@ -54,18 +62,16 @@ def load_instrument_data(
     *,
     resolution: Optional[str] = None,
     unit: Optional[str] = None,
-    # Common JSON attrs as first-class args:
-    session: Optional[str] = None,          # e.g. "close", "open", "settlement"
-    quote_side: Optional[str] = None,       # e.g. "mid","bid","ask"
-    attrs_filters: Optional[Dict[str, Any]] = None,  # any extra JSON attrs
-    long_format: bool = True,               # False -> pivot wide by data_type
-    parse_dates: bool = True
+    session: Optional[str] = None,
+    quote_side: Optional[str] = None,
+    attrs_filters: Optional[Dict[str, Any]] = None,
+    long_format: bool = True,
+    parse_dates: bool = True,
 ) -> pd.DataFrame:
     """
     Load instrument_data with flexible filters, including JSON attrs.
-    Returns a tidy (long) DataFrame by default, or pivoted wide by data_type.
+    Postgres version.
     """
-    # Normalize inputs
     def _to_list(x):
         if x is None or isinstance(x, (list, tuple, set)):
             return x
@@ -89,14 +95,6 @@ def load_instrument_data(
     start_iso = _iso(start_date)
     end_iso = _iso(end_date)
 
-    # Detect JSON1 availability
-    json1_ok = True
-    try:
-        conn.execute("SELECT json('{}');").fetchone()
-    except sqlite3.OperationalError:
-        json1_ok = False
-
-    # Build SQL
     sql = """
       SELECT
         data_date,
@@ -106,166 +104,71 @@ def load_instrument_data(
         resolution,
         unit,
         attrs
-      FROM instrument_data
-      WHERE instrument_id = ?
+      FROM instruments_instrumentdata
+      WHERE instrument_id = %s
     """
     params = [instrument_id]
 
     if sources:
-        sql += " AND source IN ({})".format(",".join(["?"] * len(sources)))
-        params.extend(list(sources))
+        sql += " AND source = ANY(%s)"
+        params.append(sources)
     if data_types:
-        sql += " AND data_type IN ({})".format(",".join(["?"] * len(data_types)))
-        params.extend(list(data_types))
+        sql += " AND data_type = ANY(%s)"
+        params.append(data_types)
     if resolution:
-        sql += " AND resolution = ?"
+        sql += " AND resolution = %s"
         params.append(resolution)
     if unit:
-        sql += " AND unit = ?"
+        sql += " AND unit = %s"
         params.append(unit)
     if start_iso:
-        sql += " AND data_date >= ?"
+        sql += " AND data_date >= %s"
         params.append(start_iso)
     if end_iso:
-        sql += " AND data_date <= ?"
+        sql += " AND data_date <= %s"
         params.append(end_iso)
 
-    # JSON filters (prefer SQL if JSON1 is available)
-    if json1_ok and extra_attrs:
-        for k, v in extra_attrs.items():
-            sql += f" AND json_extract(attrs, '$.{k}') = ?"
-            params.append(v)
+    # JSON filters (Postgres jsonb @> operator)
+    for k, v in extra_attrs.items():
+        sql += f" AND attrs ->> %s = %s"
+        params.extend([k, str(v)])
 
     sql += " ORDER BY data_date"
 
     df = pd.read_sql_query(sql, conn, params=params)
 
-    # If JSON1 wasn’t available, filter attrs in Python
     if not df.empty:
-        # Parse attrs column to dict
-        def _parse(x):
-            try:
-                return json.loads(x) if isinstance(x, str) and x else {}
-            except Exception:
-                return {}
-        df["attrs"] = df["attrs"].apply(_parse)
-
-        if not json1_ok and extra_attrs:
-            for k, v in extra_attrs.items():
-                df = df[df["attrs"].apply(lambda d: d.get(k) == v)]
-
-        # Extract a few common attrs as columns (optional, handy)
-        for k in ("session", "quote_side", "settlement_date"):
-            if k not in df.columns:
-                df[k] = df["attrs"].apply(lambda d: d.get(k))
+        # Parse attrs JSON into dict
+        df["attrs"] = df["attrs"].apply(lambda x: x if isinstance(x, dict) else json.loads(x or "{}"))
 
         if parse_dates:
             df["data_date"] = pd.to_datetime(df["data_date"], errors="coerce").dt.date
 
-        # Wide pivot if requested (assumes single source/resolution/unit per date)
         if not long_format:
-            wide = df.pivot_table(index="data_date",
-                                  columns="data_type",
-                                  values="value",
-                                  aggfunc="last").sort_index()
-            # Give the columns a flat index
+            wide = df.pivot_table(
+                index="data_date",
+                columns="data_type",
+                values="value",
+                aggfunc="last"
+            ).sort_index()
             wide.columns.name = None
             return wide
 
     return df
 
 
-
-# Define this once so INSERT/SELECT stay in sync
-_INSTR_COLUMNS = (
-    "id, short_code, name, instrument_type, issuer, country, currency, "
-    "maturity_date, first_issue_date, coupon_rate, first_coupon_length, "
-    "is_green, is_linker, index_lag, rpi_base, tenor, reference_index, day_count_fraction"
-)
-
-def _iso(d: Any) -> Optional[str]:
-    if d is None: return None
-    return d.isoformat() if isinstance(d, date) else str(d)
+# ------------ instruments ------------
 
 def get_instrument(conn, isin: str) -> Optional[Instrument]:
-    row = conn.execute("SELECT * FROM instruments WHERE isin = ? LIMIT 1", (isin,)).fetchone()
+    sql = "SELECT * FROM instruments_instrument WHERE isin = %s LIMIT 1"
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(sql, (isin,))
+        row = cur.fetchone()
     return _row_to_instrument(row) if row else None
 
-def list_instruments(
-    conn: sqlite3.Connection,
-    instrument_types: Optional[Sequence[str]] = None,
-    country: Optional[str] = None,
-    is_green: Optional[bool] = None,
-    is_linker: Optional[bool] = None,
-    like: Optional[str] = None,          # substring filter
-    columns: Optional[Sequence[str]] = None,  # choose specific cols
-    _debug: bool = False,
-) -> pd.DataFrame:
-    """
-    Return a DataFrame of instruments with optional filters.
-    Schema columns (key ones): isin, short_code, name, instrument_type, issuer, country,
-    currency, maturity_date, first_issue_date, coupon_rate, is_green, is_linker, ...
-    """
-    # default visible columns
-    if not columns:
-        columns = [
-            "isin", "short_code", "name", "instrument_type",
-            "issuer", "country", "currency",
-            "maturity_date", "first_issue_date",
-            "coupon_rate", "is_green", "is_linker"
-        ]
-
-    sql = f"""
-        SELECT {", ".join(columns)}
-        FROM instruments
-        WHERE 1=1
-    """
-    params: list = []
-
-    # filters
-    if instrument_types:
-        placeholders = ",".join(["?"] * len(instrument_types))
-        sql += f" AND instrument_type IN ({placeholders})"
-        params.extend(instrument_types)
-
-    if country:
-        sql += " AND country = ?"
-        params.append(country)
-
-    if is_green is not None:
-        sql += " AND is_green = ?"
-        params.append(1 if is_green else 0)
-
-    if is_linker is not None:
-        sql += " AND is_linker = ?"
-        params.append(1 if is_linker else 0)
-
-    if like:
-        sql += " AND (name LIKE ? OR short_code LIKE ? OR isin LIKE ?)"
-        needle = f"%{like}%"
-        params.extend([needle, needle, needle])
-
-    sql += " ORDER BY instrument_type, name, isin"
-
-    if _debug:
-        print("SQL:", sql)
-        print("PARAMS:", params)
-
-    df = pd.read_sql_query(sql, conn, params=params)
-
-    # normalise booleans if present
-    for bcol in ("is_green", "is_linker"):
-        if bcol in df.columns:
-            df[bcol] = df[bcol].astype("Int64").map({0: False, 1: True})
-    # dates come back as strings; leave as-is or parse:
-    # for dcol in ("maturity_date", "first_issue_date"):
-    #     if dcol in df.columns:
-    #         df[dcol] = pd.to_datetime(df[dcol], errors="coerce").dt.date
-
-    return df
 
 def list_instruments(
-    conn: sqlite3.Connection,
+    conn,
     *,
     instrument_types: Optional[Sequence[str]] = None,
     country: Optional[str] = None,
@@ -275,125 +178,67 @@ def list_instruments(
     order_by: str = "instrument_type, name, isin",
     limit: Optional[int] = None,
 ) -> List[Instrument]:
-    """
-    Return a list of Instrument objects matching the filters.
-    """
-    sql_parts = ["SELECT * FROM instruments WHERE 1=1"]
+    sql_parts = ["SELECT * FROM instruments_instrument WHERE 1=1"]
     params: list = []
 
     if instrument_types:
-        sql_parts.append(f"AND instrument_type IN ({','.join('?' for _ in instrument_types)})")
-        params.extend(instrument_types)
+        sql_parts.append("AND instrument_type = ANY(%s)")
+        params.append(instrument_types)
 
     if country:
-        sql_parts.append("AND country = ?")
+        sql_parts.append("AND country = %s")
         params.append(country)
 
     if is_green is not None:
-        sql_parts.append("AND is_green = ?")
-        params.append(1 if is_green else 0)
+        sql_parts.append("AND is_green = %s")
+        params.append(is_green)
 
     if is_linker is not None:
-        sql_parts.append("AND is_linker = ?")
-        params.append(1 if is_linker else 0)
+        sql_parts.append("AND is_linker = %s")
+        params.append(is_linker)
 
     if like:
-        sql_parts.append("AND (name LIKE ? OR short_code LIKE ? OR isin LIKE ?)")
+        sql_parts.append("AND (name ILIKE %s OR short_code ILIKE %s OR isin ILIKE %s)")
         needle = f"%{like}%"
         params.extend([needle, needle, needle])
 
     sql_parts.append(f"ORDER BY {order_by}")
     if limit:
-        sql_parts.append("LIMIT ?")
+        sql_parts.append("LIMIT %s")
         params.append(int(limit))
 
     query = " ".join(sql_parts)
-    cur = conn.execute(query, params)
-    rows = cur.fetchall()
-    col_names = [d[0] for d in cur.description]
+    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+        cur.execute(query, params)
+        rows = cur.fetchall()
 
-    return [_row_to_instrument(r, col_names) for r in rows]
+    return [_row_to_instrument(r) for r in rows]
 
-def resolve_isin_from_alt_id(conn: sqlite3.Connection, alt_id: str, source: str = "Bloomberg") -> str:
-    
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT instrument_id FROM instrument_identifiers
-        WHERE identifier_string = ? AND identifier_source = ?
-    """, (alt_id, source))
-    result = cursor.fetchone()
-    return result[0] if result else None
 
-def _to_date(v) -> date:
-    if isinstance(v, date):
-        return v
-    if v is None or v == "":
-        raise ValueError("holiday_date is NULL/empty")
-    # SQLite often returns TEXT 'YYYY-MM-DD'
-    return date.fromisoformat(str(v))
+# ------------ alt IDs ------------
 
-# database/query.py
-from typing import List
-import sqlite3
-from datetime import date as _date
-
-def get_holidays_for_calendar(conn: sqlite3.Connection, calendar_name: str, _debug: bool = False) -> List[_date]:
-    sql = (
-        "SELECT holiday_date FROM calendar_holidays "
-        "WHERE calendar_name = ? "
-        "ORDER BY holiday_date"
-    )
-    params = (calendar_name,)
-    if _debug:
-        print("SQL:", sql, "\nparams:", params)
-
-    rows = conn.execute(sql, params).fetchall()
-    # If row_factory=sqlite3.Row (as in your connect()), both r[0] and r["holiday_date"] work:
-    return [_to_date(r["holiday_date"]) for r in rows]  # or r[0]
-
-def inspect_schema(conn, save_path: str = None):
+def resolve_isin_from_alt_id(conn, alt_id: str, source: str = "Bloomberg") -> Optional[str]:
+    sql = """
+        SELECT instrument_id
+        FROM instruments_instrumentidentifier
+        WHERE identifier_string = %s AND identifier_source = %s
     """
-    Inspect SQLite schema: print, return dict, and optionally save to file.
-    
-    Args:
-        conn: sqlite3.Connection
-        save_path: optional path to save schema as text file
-    
-    Returns:
-        dict with structure {table_name: [{"name": col_name, "type": col_type, "pk": bool, "notnull": bool, "default": value}, ...]}
+    with conn.cursor() as cur:
+        cur.execute(sql, (alt_id, source))
+        row = cur.fetchone()
+    return row[0] if row else None
+
+
+# ------------ holidays ------------
+
+def get_holidays_for_calendar(conn, calendar_name: str, _debug: bool = False) -> List[date]:
+    sql = """
+        SELECT holiday_date
+        FROM instruments_calendarholiday
+        WHERE calendar_name = %s
+        ORDER BY holiday_date
     """
-    cursor = conn.cursor()
-
-    # List all tables
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    tables = [row[0] for row in cursor.fetchall()]
-
-    schema = {}
-    output_lines = ["📋 Tables in database:"]
-
-    for table in tables:
-        output_lines.append(f"\n== {table} ==")
-        cursor.execute(f"PRAGMA table_info({table});")
-        columns = []
-        for cid, name, col_type, notnull, default, pk in cursor.fetchall():
-            col_info = {
-                "name": name,
-                "type": col_type,
-                "pk": bool(pk),
-                "notnull": bool(notnull),
-                "default": default,
-            }
-            columns.append(col_info)
-            output_lines.append(f" - {name} ({col_type}){' [PK]' if pk else ''}")
-        schema[table] = columns
-
-    # Print to console
-    print("\n".join(output_lines))
-
-    # Save to file if requested
-    if save_path:
-        with open(save_path, "w") as f:
-            f.write("\n".join(output_lines))
-        print(f"\n💾 Schema saved to {save_path}")
-
-    return schema
+    with conn.cursor() as cur:
+        cur.execute(sql, (calendar_name,))
+        rows = cur.fetchall()
+    return [r[0] for r in rows]

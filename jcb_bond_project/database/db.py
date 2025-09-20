@@ -1,15 +1,17 @@
-import sqlite3
+# database/db.py
+import os, psycopg2
 from contextlib import contextmanager
 
-def connect(db_path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")
-    return conn
+def connect(database_url=None):
+    if database_url is None:
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            raise RuntimeError("DATABASE_URL not set")
+    return psycopg2.connect(database_url)
 
 @contextmanager
-def get_conn(db_path: str):
-    conn = connect(db_path)
+def get_conn(database_url=None):
+    conn = connect(database_url)
     try:
         yield conn
         conn.commit()
