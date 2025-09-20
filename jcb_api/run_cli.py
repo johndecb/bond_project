@@ -7,7 +7,7 @@ import pandas as pd
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "funderly.settings")
 django.setup()
 
-from instruments.models import Instrument, InstrumentData, DataTypeMap
+from jcb_bond_project.models import Instrument, InstrumentData
 
 
 # ------------ commands ------------
