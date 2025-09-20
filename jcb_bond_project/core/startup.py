@@ -1,15 +1,20 @@
-import sqlite3
-from jcb_bond_project.database.schema import create_instruments_table, create_instrument_data_table
-from jcb_bond_project.validate_schema import check_instrument_schema, check_instrument_data_schema
+# core/startup.py (new version)
+# NOTE:
+# This file is a legacy replacement for the old SQLite startup script.
+# It has been repurposed to run a basic Django/Postgres schema check,
+# but it’s not really needed in production since Django migrations
+# already handle schema management automatically.
+# You can safely ignore or remove this file if it becomes redundant.
 
-def setup_database(db_path):
-    create_instruments_table(db_path)
-    create_instrument_data_table(db_path)
-    print("✅ Tables created or confirmed.")
+import os
+import django
 
-def validate_database_schema(db_path):
-    conn = sqlite3.connect(db_path)
-    check_instrument_schema(conn)
-    check_instrument_data_schema(conn)
-    conn.close()
-    print("✅ Schema validation complete.")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "funderly.settings")
+django.setup()
+
+from django.core.management import call_command
+
+def validate_database():
+    """Ensure DB schema matches Django migrations."""
+    call_command("migrate", check=True, plan=True)
+    print("✅ Database schema matches migrations")

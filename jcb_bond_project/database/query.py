@@ -69,8 +69,7 @@ def load_instrument_data(
     parse_dates: bool = True,
 ) -> pd.DataFrame:
     """
-    Load instrument_data with flexible filters, including JSON attrs.
-    Postgres version.
+    Load instrument_data with canonicalised data_type via datatypemap.
     """
     def _to_list(x):
         if x is None or isinstance(x, (list, tuple, set)):
@@ -97,49 +96,53 @@ def load_instrument_data(
 
     sql = """
       SELECT
-        data_date,
-        data_type,
-        value,
-        source,
-        resolution,
-        unit,
-        attrs
-      FROM instruments_instrumentdata
-      WHERE instrument_id = %s
+        d.data_date,
+        COALESCE(m.canonical_data_type, d.data_type) AS data_type,
+        d.value,
+        d.source,
+        d.resolution,
+        COALESCE(d.unit, m.default_unit) AS unit,
+        d.attrs
+      FROM instruments_instrumentdata d
+      LEFT JOIN instruments_datatypemap m
+        ON LOWER(m.source) = LOWER(d.source)
+       AND LOWER(m.raw_data_type) = LOWER(d.data_type)
+      WHERE d.instrument_id = %s
     """
     params = [instrument_id]
 
     if sources:
-        sql += " AND source = ANY(%s)"
+        sql += " AND d.source = ANY(%s)"
         params.append(sources)
     if data_types:
-        sql += " AND data_type = ANY(%s)"
-        params.append(data_types)
+        sql += " AND (d.data_type = ANY(%s) OR m.canonical_data_type = ANY(%s))"
+        params.extend([data_types, data_types])
     if resolution:
-        sql += " AND resolution = %s"
+        sql += " AND d.resolution = %s"
         params.append(resolution)
     if unit:
-        sql += " AND unit = %s"
+        sql += " AND COALESCE(d.unit, m.default_unit) = %s"
         params.append(unit)
     if start_iso:
-        sql += " AND data_date >= %s"
+        sql += " AND d.data_date >= %s"
         params.append(start_iso)
     if end_iso:
-        sql += " AND data_date <= %s"
+        sql += " AND d.data_date <= %s"
         params.append(end_iso)
 
-    # JSON filters (Postgres jsonb @> operator)
+    # JSON filters using Postgres jsonb ->>
     for k, v in extra_attrs.items():
-        sql += f" AND attrs ->> %s = %s"
+        sql += " AND d.attrs ->> %s = %s"
         params.extend([k, str(v)])
 
-    sql += " ORDER BY data_date"
+    sql += " ORDER BY d.data_date"
 
     df = pd.read_sql_query(sql, conn, params=params)
 
     if not df.empty:
-        # Parse attrs JSON into dict
-        df["attrs"] = df["attrs"].apply(lambda x: x if isinstance(x, dict) else json.loads(x or "{}"))
+        df["attrs"] = df["attrs"].apply(
+            lambda x: x if isinstance(x, dict) else json.loads(x or "{}")
+        )
 
         if parse_dates:
             df["data_date"] = pd.to_datetime(df["data_date"], errors="coerce").dt.date
@@ -155,6 +158,7 @@ def load_instrument_data(
             return wide
 
     return df
+
 
 
 # ------------ instruments ------------
