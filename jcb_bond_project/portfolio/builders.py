@@ -95,3 +95,57 @@ def build_portfolio(
         "r_squared": r_squared,
         "num_bonds": len(filtered_bonds),
     }
+
+def build_portfolio_json(
+    select_start_date: date | datetime,
+    select_end_date: date | datetime,
+    settlement_date: date | datetime,
+    target_amount: float = 100,
+    frequency: str = "monthly",
+    country: str = "UK",
+    is_green: bool = False,
+    is_linker: bool = False,
+) -> dict:
+    """Wrapper: run build_portfolio() and convert results to JSON-friendly dict."""
+    result = build_portfolio(
+        select_start_date,
+        select_end_date,
+        settlement_date,
+        target_amount,
+        frequency,
+        country,
+        is_green,
+        is_linker,
+    )
+
+    # Timeline
+    timeline = [d.strftime("%Y-%m-%d") for d in result["unified_timeline"]]
+
+    # Arrays
+    running_totals_target = result["running_totals_target"].tolist()
+    predicted_running = result["predicted_running"].tolist()
+    residuals = result["residuals"].tolist()
+
+    # Bond weights
+    bond_weights = result["bond_weights"].to_dict(orient="records")
+
+    # Unified cashflows: always bring index in as "date"
+    unified_cashflows = (
+        result["unified_cashflows"]
+        .reset_index(names="date")
+        .assign(date=lambda df: pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d"))
+        .to_dict(orient="records")
+    )
+
+    return {
+        "timeline": timeline,
+        "bond_weights": bond_weights,
+        "running_totals_target": running_totals_target,
+        "predicted_running": predicted_running,
+        "residuals": residuals,
+        "mse": result["mse"],
+        "r_squared": result["r_squared"],
+        "num_bonds": result["num_bonds"],
+        "unified_cashflows": unified_cashflows,
+    }
+
