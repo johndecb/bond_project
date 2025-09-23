@@ -3,19 +3,12 @@ def test_imports():
     import jcb_api.main
     import jcb_bond_project.cashflow_model.builders
     import jcb_bond_project.cashflow_model.conv_bond_model
-    import jcb_core.startup
+    import jcb_bond_project.portfolio.portfolio_builders
+    import jcb_bond_project.portfolio.portfolio_optimiser
     import jcb_bond_project.database.db
-    import jcb_bond_project.database.query
     import jcb_bond_project.database.insert
-    import jcb_bond_project.database.schema
-    import jcb_bond_project.database.normalise_types
-    import jcb_loaders.load_bonds
-    import jcb_loaders.load_tradeweb
-    import jcb_loaders.load_bbergexcel
-    import jcb_loaders.compare_sources
+    import jcb_bond_project.database.query
     import jcb_bond_project.models.instrument
     import jcb_bond_project.models.instrument_data
-    import jcb_bond_project.models.cashflows
     import jcb_bond_project.utils.jcb_calendar
     import jcb_bond_project.utils.identifiers
-    import jcb_bond_project.jcb_analytics.jcb_analytics

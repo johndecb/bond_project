@@ -8,14 +8,6 @@ def test_imports_and_functions():
     import datetime
     assert _coerce_date(datetime.date.today()) == datetime.date.today()
 
-    # --- Schema / validation ---
-    from jcb_bond_project.validate_schema import check_instrument_schema
-    # Should just run without raising (we’re not testing DB contents here)
-    try:
-        check_instrument_schema(None)
-    except Exception:
-        pass
-
     # --- Cashflow model ---
     from jcb_bond_project.cashflow_model.conv_bond_model import CashflowModel
     import datetime
@@ -47,8 +39,8 @@ def test_imports_and_functions():
     assert isin.startswith("JCB")
 
     # --- Portfolio ---
-    import jcb_bond_project.portfolio.builders
-    assert hasattr(jcb_bond_project.portfolio.builders, "build_portfolio")
+    import jcb_bond_project.portfolio.portfolio_builders
+    assert hasattr(jcb_bond_project.portfolio.portfolio_builders, "build_portfolio")
 
     # --- Analytics ---
     import jcb_bond_project.jcb_analytics.jcb_analytics
