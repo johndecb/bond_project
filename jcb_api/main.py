@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from datetime import date, timedelta
 import traceback
-from jcb_bond_project.portfolio.builders import build_portfolio_json
+from jcb_bond_project.portfolio.portfolio_builders import build_portfolio_json
 
 app = FastAPI(title="Bond Project API")
 

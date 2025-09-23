@@ -1,26 +1,35 @@
 ================================================================================
-Snapshot of: C:\Users\johnd\bond_project
+Snapshot of: /Volumes/PROJECT_JCB/bond_project
 Project     : bond_project
-Timestamp   : 2025-09-19T09:51:41
+Timestamp   : 2025-09-23T14:16:42
 Max depth   : 5
 ================================================================================
-Git repo root : C:/Users/johnd/bond_project
+Git repo root : /Volumes/PROJECT_JCB/bond_project
 Current branch: main
 Remotes:
   origin	https://github.com/johndecb/bond_project.git (fetch)
   origin	https://github.com/johndecb/bond_project.git (push)
 Working tree status:
-  M jcb_usefultools.ipynb
-   D repo_snapshot.txt
+  M jcb_api/main.py
+  RM jcb_bond_project/portfolio/builders.py -> jcb_bond_project/portfolio/portfolio_builders.py
+  RM jcb_bond_project/cashflow_model/builders.py -> jcb_bond_project/portfolio/portfolio_optimiser.py
+   M jcb_usefultools.ipynb
+  ?? jcb_bond_project/cashflow_model/builders.py
 
 Directory tree:
 ├── .hypothesis/
 ├── .vscode/
-│   └── settings.json  (203.0B)
+│   └── settings.json  (174.0B)
+├── dmo_data/
+│   ├── ._20250428 - Gilts in Issue.xls  (4.0KB)
+│   ├── ._20250529 - Gilts in Issue.xls  (4.0KB)
+│   ├── 20250428 - Gilts in Issue.xls  (39.0KB)
+│   └── 20250529 - Gilts in Issue.xls  (39.5KB)
+├── git-practice/
 ├── jcb_api/
 │   ├── __init__.py  (0.0B)
-│   ├── main.py  (1.5KB)
-│   └── run_cli.py  (2.4KB)
+│   ├── main.py  (2.2KB)
+│   └── run_cli.py  (2.5KB)
 ├── jcb_bond_project/
 │   ├── cashflow_model/
 │   │   ├── __init__.py
@@ -32,16 +41,18 @@ Directory tree:
 │   │   ├── __init__.py
 │   │   ├── db.py
 │   │   ├── insert.py
-│   │   ├── normalise_types.py
-│   │   ├── query.py
-│   │   └── schema.py
+│   │   └── query.py
 │   ├── jcb_analytics/
+│   │   ├── ._bond_pricer.xlsx
 │   │   ├── ._jcb_analytics.xlsm
+│   │   ├── ._~$bond_pricer.xlsx
 │   │   ├── __init__.py
+│   │   ├── bond_pricer.xlsx
 │   │   ├── jcb_analytics.py
-│   │   └── jcb_analytics.xlsm
+│   │   ├── jcb_analytics.xlsm
+│   │   └── ~$bond_pricer.xlsx
 │   ├── loaders/
-│   │   └── ._.DS_Store
+│   │   ├── ._.DS_Store
 │   ├── models/
 │   │   ├── __init__.py
 │   │   ├── cashflows.py
@@ -49,7 +60,8 @@ Directory tree:
 │   │   └── instrument_data.py
 │   ├── portfolio/
 │   │   ├── __init__.py
-│   │   └── builders.py
+│   │   ├── portfolio_builders.py
+│   │   └── portfolio_optimiser.py
 │   ├── tests/
 │   │   ├── __init__.py
 │   │   └── test_smoke.py
@@ -58,71 +70,121 @@ Directory tree:
 │   │   ├── identifiers.py
 │   │   └── jcb_calendar.py
 │   ├── __init__.py  (0.0B)
-│   ├── api_server.py  (774.0B)
-│   └── validate_schema.py  (1.7KB)
+│   └── api_server.py  (749.0B)
 ├── jcb_bond_project.egg-info/
 │   ├── dependency_links.txt  (1.0B)
-│   ├── PKG-INFO  (336.0B)
-│   ├── requires.txt  (82.0B)
-│   ├── SOURCES.txt  (1.3KB)
-│   └── top_level.txt  (25.0B)
+│   ├── PKG-INFO  (278.0B)
+│   ├── requires.txt  (63.0B)
+│   ├── SOURCES.txt  (1.5KB)
+│   └── top_level.txt  (46.0B)
 ├── jcb_core/
 │   ├── __init__.py  (0.0B)
-│   ├── list_funcs.py  (1.7KB)
-│   ├── migrate_schema.py  (11.6KB)
-│   └── startup.py  (594.0B)
+│   └── list_funcs.py  (1.6KB)
 ├── jcb_loaders/
 │   ├── __init__.py  (0.0B)
-│   ├── classify.py  (2.1KB)
-│   ├── compare_sources.py  (1.6KB)
+│   ├── classify.py  (2.0KB)
+│   ├── compare_sources.py  (1.5KB)
 │   ├── load_bbergexcel.py  (1.5KB)
-│   ├── load_bonds.py  (5.6KB)
-│   └── load_tradeweb.py  (5.4KB)
+│   ├── load_bonds.py  (5.5KB)
+│   └── load_tradeweb.py  (5.2KB)
 ├── tests/
-│   ├── test_imports.py  (892.0B)
+│   ├── test_imports.py  (871.0B)
 │   └── test_smoke_imports.py  (1.8KB)
 ├── tradeweb_data/
-│   └── ._.DS_Store  (4.0KB)
+│   ├── ._.DS_Store  (4.0KB)
+│   ├── ._tradeweb_close_data.csv  (4.0KB)
+│   ├── ._Tradeweb_FTSE_ClosePrices (1).csv  (4.0KB)
+│   ├── ._Tradeweb_FTSE_ClosePrices (2).csv  (4.0KB)
+│   ├── ._Tradeweb_FTSE_ClosePrices.csv  (4.0KB)
+│   ├── ._tradeweb_GB00B1VWPJ53.csv  (4.0KB)
+│   ├── tradeweb_close_data.csv  (599.9KB)
+│   ├── Tradeweb_FTSE_ClosePrices (1).csv  (312.8KB)
+│   ├── Tradeweb_FTSE_ClosePrices (2).csv  (312.8KB)
+│   ├── Tradeweb_FTSE_ClosePrices.csv  (602.0KB)
+│   └── tradeweb_GB00B1VWPJ53.csv  (34.0KB)
 ├── z_old_stuff/
+│   ├── ._cash_flow_01.xlsx  (4.0KB)
+│   ├── ._output5.xlsx  (4.0KB)
+│   ├── ._recon_GB00BTHH2R79_bbg_close_full_history.csv  (4.0KB)
+│   ├── ._recon_GB00BTHH2R79_bbg_close_full_history_2.csv  (4.0KB)
 │   ├── ._Spreadsheet_Cashflow_Optimiser.ods  (4.0KB)
-│   └── Spreadsheet_Cashflow_Optimiser.ods  (959.7KB)
+│   ├── ._uk_calendar.xlsx  (4.0KB)
+│   ├── bbg_vs_model_GB00BMBL1G81_lag1.csv  (2.0KB)
+│   ├── cash_flow_01.xlsx  (90.2KB)
+│   ├── Francis.xlsx  (3.2KB)
+│   ├── output5.xlsx  (87.7KB)
+│   ├── recon_GB00BTHH2R79_bbg_close_full_history.csv  (342.6KB)
+│   ├── recon_GB00BTHH2R79_bbg_close_full_history_2.csv  (342.6KB)
+│   ├── Spreadsheet_Cashflow_Optimiser.ods  (959.7KB)
+│   ├── uk_calendar.xlsx  (18.0KB)
+│   ├── uk_curve_assignments_2025-07-22.csv  (3.2KB)
+│   ├── uk_curve_fit_errors_2025-07-22.csv  (2.4KB)
+│   └── uk_parallel_forward_assignments_2025-07-22.csv  (2.9KB)
 ├── ._.DS_Store  (4.0KB)
-├── ._.gitignore  (4.0KB)
 ├── ._CashFlow1990.pdf  (4.0KB)
+├── ._FirstCouponFill.xlsx  (4.0KB)
 ├── ._function_inventory.txt  (4.0KB)
+├── ._instruments_export.xlsx  (4.0KB)
+├── ._ISIN_to_Bberg.xlsx  (4.0KB)
 ├── ._JCB_Analytics_Project_Index.txt  (4.0KB)
+├── ._JCB_Identifier_Mapping.xlsx  (4.0KB)
+├── ._Price_History_HC.xlsx  (4.0KB)
 ├── ._schema_output.txt  (4.0KB)
+├── ._Spreadsheet_Cashflow_Optimiser_v0_1.xlsx  (4.0KB)
+├── ._~$cash_flow_01.xlsx  (4.0KB)
+├── ._~$JCB_Identifier_Mapping.xlsx  (4.0KB)
+├── ._~$output3.xlsx  (4.0KB)
+├── ._~$output4.xlsx  (4.0KB)
+├── ._~$output5.xlsx  (4.0KB)
+├── ._~$Price_History_HC.xlsx  (4.0KB)
 ├── ._~$Spreadsheet_Cashflow_Optimiser.ods  (4.0KB)
-├── .gitignore  (1.1KB)
+├── ._~$Spreadsheet_Cashflow_Optimiser_v0_1.xlsx  (4.0KB)
+├── ._~$uk_calendar.xlsx  (4.0KB)
+├── .gitignore  (1001.0B)
 ├── api_server.xlsm  (14.8KB)
 ├── bond_project_tree.txt  (5.3KB)
 ├── Bond_Tweb_Bberg_Example.PNG  (67.4KB)
 ├── CashFlow1990.pdf  (466.6KB)
-├── fix_imports.py  (1.1KB)
-├── function_inventory.txt  (3.4KB)
+├── FirstCouponFill.xlsx  (11.3KB)
+├── fix_imports.py  (1.0KB)
+├── function_inventory.txt  (3.3KB)
+├── instruments_export.xlsx  (13.1KB)
+├── ISIN_to_Bberg.xlsx  (13.1KB)
 ├── jcb_analytics.xlsm  (15.8KB)
-├── JCB_Analytics_Project_Index.txt  (2.4KB)
-├── jcb_cashflow_notepad.ipynb  (944.2KB)
+├── JCB_Analytics_Project_Index.txt  (2.3KB)
+├── jcb_cashflow_notepad.ipynb  (938.3KB)
 ├── jcb_db.db  (213.0MB)
-├── jcb_notepad.ipynb  (147.4KB)
-├── jcb_usefultools.ipynb  (103.3KB)
-├── pyproject.toml  (545.0B)
-├── requirements-dev.txt  (109.0B)
-├── requirements.txt  (302.0B)
-├── run_startup.py  (188.0B)
-├── schema_output.txt  (1.1KB)
-└── ~$Spreadsheet_Cashflow_Optimiser.ods  (165.0B)
+├── JCB_Identifier_Mapping.xlsx  (11.2KB)
+├── jcb_notepad.ipynb  (144.2KB)
+├── jcb_usefultools.ipynb  (100.4KB)
+├── Price_History_HC.xlsx  (4.5MB)
+├── pyproject.toml  (518.0B)
+├── repo_snapshot.txt  (6.0KB)
+├── requirements-dev.txt  (98.0B)
+├── requirements.txt  (315.0B)
+├── run_startup.py  (183.0B)
+├── schema_output.txt  (1.0KB)
+├── Spreadsheet_Cashflow_Optimiser_v0_1.xlsx  (1.1MB)
+├── ~$cash_flow_01.xlsx  (165.0B)
+├── ~$JCB_Identifier_Mapping.xlsx  (165.0B)
+├── ~$output3.xlsx  (165.0B)
+├── ~$output4.xlsx  (165.0B)
+├── ~$output5.xlsx  (165.0B)
+├── ~$Price_History_HC.xlsx  (165.0B)
+├── ~$Spreadsheet_Cashflow_Optimiser.ods  (165.0B)
+├── ~$Spreadsheet_Cashflow_Optimiser_v0_1.xlsx  (165.0B)
+└── ~$uk_calendar.xlsx  (165.0B)
 
 Large files (≥ 5 MB):
    213.0MB  jcb_db.db
 
 ================================================================================
-Snapshot of: C:\Users\johnd\funderly
+Snapshot of: /Volumes/PROJECT_JCB/funderly
 Project     : funderly
-Timestamp   : 2025-09-19T09:51:41
+Timestamp   : 2025-09-23T14:16:43
 Max depth   : 5
 ================================================================================
-Git repo root : C:/Users/johnd/funderly
+Git repo root : /Volumes/PROJECT_JCB/funderly
 Current branch: main
 Remotes:
   origin	https://github.com/johndecb/funderly.git (fetch)
@@ -131,28 +193,27 @@ Working tree status:
   clean
 
 Directory tree:
-├── .hypothesis/
-├── .vscode/
-│   └── settings.json  (199.0B)
 ├── funderly/
 │   ├── __init__.py  (0.0B)
-│   ├── asgi.py  (409.0B)
-│   ├── settings.py  (3.6KB)
-│   ├── urls.py  (857.0B)
-│   └── wsgi.py  (409.0B)
+│   ├── asgi.py  (393.0B)
+│   ├── settings.py  (3.5KB)
+│   ├── urls.py  (832.0B)
+│   └── wsgi.py  (393.0B)
 ├── instruments/
 │   ├── management/
 │   │   └── commands/
 │   │       └── load_from_sqlite.py
 │   ├── migrations/
 │   │   ├── 0001_initial.py
+│   │   ├── 0002_add_datatypemap.py
+│   │   ├── 0003_seed_datatypemap.py
 │   │   └── __init__.py
 │   ├── __init__.py  (0.0B)
-│   ├── admin.py  (66.0B)
-│   ├── apps.py  (160.0B)
-│   ├── models.py  (3.4KB)
-│   ├── tests.py  (63.0B)
-│   └── views.py  (66.0B)
+│   ├── admin.py  (63.0B)
+│   ├── apps.py  (154.0B)
+│   ├── models.py  (3.3KB)
+│   ├── tests.py  (60.0B)
+│   └── views.py  (63.0B)
 ├── portfolio/
 │   ├── migrations/
 │   │   └── __init__.py
@@ -160,21 +221,21 @@ Directory tree:
 │   │   └── portfolio/
 │   │       └── home.html
 │   ├── __init__.py  (0.0B)
-│   ├── admin.py  (66.0B)
-│   ├── apps.py  (156.0B)
-│   ├── forms.py  (540.0B)
-│   ├── models.py  (60.0B)
-│   ├── tests.py  (63.0B)
-│   └── views.py  (769.0B)
-├── .env  (229.0B)
-├── .gitignore  (1.1KB)
+│   ├── admin.py  (63.0B)
+│   ├── apps.py  (150.0B)
+│   ├── forms.py  (524.0B)
+│   ├── models.py  (57.0B)
+│   ├── tests.py  (60.0B)
+│   └── views.py  (1.1KB)
+├── .env  (479.0B)
+├── .gitignore  (1001.0B)
 ├── .gitmodules  (100.0B)
-├── db.sqlite3  (180.0KB)
+├── db.sqlite3  (172.1MB)
 ├── funderly_tree.txt  (2.3KB)
-├── manage.py  (686.0B)
-├── README.md  (12.0B)
-├── repo_snapshot.txt  (1.7KB)
-└── requirements.txt  (193.0B)
+├── manage.py  (664.0B)
+├── README.md  (11.0B)
+├── render_summary.sh  (1.3KB)
+└── requirements.txt  (209.0B)
 
 Large files (≥ 5 MB):
-  (none)
+   172.1MB  db.sqlite3

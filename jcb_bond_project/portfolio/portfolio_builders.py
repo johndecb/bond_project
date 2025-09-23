@@ -1,39 +1,21 @@
+import os
 from datetime import date, datetime
 from typing import List, Dict, Optional, Any
 import pandas as pd
 import numpy as np
 
-from jcb_bond_project.models.instrument import Instrument
-from jcb_bond_project.cashflow_model.conv_bond_model import CashflowModel, CashflowRow
 from dateutil.relativedelta import relativedelta
 
+from jcb_bond_project.models.instrument import Instrument
+from jcb_bond_project.database.db import get_conn
+from jcb_bond_project.database.query import list_instruments, get_holidays_for_calendar
+from jcb_bond_project.utils.jcb_calendar import BusinessDayCalendar
+from jcb_bond_project.portfolio.portfolio_optimiser import solve_portfolio_weights
+from jcb_bond_project.cashflow_model.builders import cashflows_from_instrument
 
-def cashflows_from_instrument(
-    inst: Instrument,
-    *,
-    calendar=None,
-    frequency: int = 2,
-    notional: float = 100.0,
-    convention: str = "mf",
-    first_coupon_date: Optional[date] = None,
-) -> List[CashflowRow]:
-    if (inst.instrument_type or "").strip().lower() != "bond":
-        raise ValueError(f"Expected a bond, got {inst.instrument_type!r}")
-    if inst.first_issue_date is None or inst.maturity_date is None or inst.coupon_rate is None:
-        raise ValueError(f"Missing dates/coupon for {inst.isin}")
 
-    model = CashflowModel(
-        issue_date=inst.first_issue_date,
-        maturity_date=inst.maturity_date,
-        coupon_rate=float(inst.coupon_rate),
-        frequency=frequency,
-        notional=notional,
-        calendar=calendar,
-        convention=convention,
-        first_coupon_length=inst.first_coupon_length,
-        first_coupon_date=first_coupon_date,
-    )
-    return model.generate_cashflow_schedule()
+# Get DB connection string (Postgres on Render, fallback to SQLite locally)
+DB_PATH = os.getenv("DATABASE_URL", "jcb_db.db")
 
 def cashflows_df(
     instruments: List[Instrument],
@@ -248,44 +230,182 @@ def create_unified_timeline(
 # bond_project/portfolio/portfolio_optimiser.py
 import numpy as np
 
-def solve_portfolio_weights(C_matrix: np.ndarray, Y_vector: np.ndarray) -> np.ndarray:
+def create_unified_timeline(
+    cf_target: pd.DataFrame,
+    cf_mat: pd.DataFrame,
+    settlement_date: date | datetime | None = None,
+    drop_zeros: bool = True,
+) -> pd.DataFrame:
     """
-    Solve for portfolio weights using least squares:
-        w = argmin ||C w - Y||^2
-    
+    Create unified timeline combining target dates and bond cashflow dates.
+    Structure: rows = dates, columns = ['target'] + bond ISINs.
+
     Args:
-        C_matrix: np.ndarray, shape (M_periods, N_bonds)
-            Running totals (or cashflow) matrix for bonds.
-        Y_vector: np.ndarray, shape (M_periods,)
-            Running totals vector for target.
-    
+        cf_target (pd.DataFrame): target schedule (index=cashflow_date, column ['target']).
+        cf_mat (pd.DataFrame): bond cashflow matrix (index=cashflow_date, columns=ISINs).
+        settlement_date (date/datetime, optional): only include dates after this.
+        drop_zeros (bool): if True, drop rows where all values are zero.
+
     Returns:
-        np.ndarray of shape (N_bonds,)
-            Portfolio weights.
+        pd.DataFrame: unified matrix with aligned target and bond cashflows.
     """
-    C_matrix = np.asarray(C_matrix, dtype=float)
-    Y_vector = np.asarray(Y_vector, dtype=float).ravel()
+    # Normalise to DatetimeIndex
+    cf_target.index = pd.to_datetime(cf_target.index)
+    cf_mat.index = pd.to_datetime(cf_mat.index)
 
-    # Debugging
-    print(f"[solve_portfolio_weights] Input shapes:")
-    print(f"  C_matrix: {C_matrix.shape}")
-    print(f"  Y_vector: {Y_vector.shape}")
+    # Combine all dates
+    all_dates = cf_target.index.union(cf_mat.index).sort_values()
 
-    # Normal equations
-    C_T = C_matrix.T
-    CTc = C_T @ C_matrix
-    CTy = C_T @ Y_vector
+    # Settlement filter
+    if settlement_date is not None:
+        settlement_date = pd.to_datetime(settlement_date)
+        all_dates = all_dates[all_dates > settlement_date]
 
-    try:
-        # Prefer solve() over explicit inverse
-        weights = np.linalg.solve(CTc, CTy)
-        print("  Using np.linalg.solve (normal equations).")
-    except np.linalg.LinAlgError:
-        print("  Matrix singular/ill-conditioned, falling back to lstsq.")
-        weights, residuals, rank, s = np.linalg.lstsq(C_matrix, Y_vector, rcond=None)
-        print(f"  Least squares rank: {rank}/{min(C_matrix.shape)}")
-        if len(residuals) > 0:
-            print(f"  Residual norm: {residuals[0]:.4f}")
+    if all_dates.empty:
+        raise ValueError("No dates found after settlement date")
 
-    print(f"  Output weights shape: {weights.shape}")
-    return weights
+    # Reindex both frames
+    cf_target = cf_target.reindex(all_dates, fill_value=0.0)
+    cf_mat = cf_mat.reindex(all_dates, fill_value=0.0)
+
+    # Concatenate with target first
+    unified_cf = pd.concat([cf_target, cf_mat], axis=1)
+
+    # Optionally drop rows with all zeros
+    if drop_zeros:
+        unified_cf = unified_cf.loc[(unified_cf != 0).any(axis=1)]
+
+    return unified_cf
+
+# bond_project/portfolio/portfolio_optimiser.py
+import numpy as np
+
+def build_portfolio(
+    select_start_date: date | datetime,
+    select_end_date: date | datetime,
+    settlement_date: date | datetime,
+    target_amount: float = 100,
+    frequency: str = "monthly",
+    country: str = "UK",
+    is_green: bool = False,
+    is_linker: bool = False,
+) -> dict:
+    """Construct portfolio weights for target cashflows."""
+    # 1. Load and filter bonds
+    with get_conn(DB_PATH) as conn:
+        bonds = list_instruments(
+            conn,
+            instrument_types=["bond"],
+            country=country,
+            is_green=is_green,
+            is_linker=is_linker,
+        )
+        uk = BusinessDayCalendar(set(get_holidays_for_calendar(conn, country)))
+
+    if not bonds:
+        raise ValueError("No bonds found in database for given filters")
+
+    # 2. Filter bonds by maturity
+    filtered_bonds = filter_bonds_by_maturity(bonds, settlement_date, select_end_date)
+    if not filtered_bonds:
+        raise ValueError("No bonds found matching maturity criteria")
+
+    # 3. Generate bond cashflows
+    cf_long = cashflows_df(filtered_bonds, calendar=uk)
+    cf_mat = cashflow_matrix(cf_long)
+
+    # 4. Generate target cashflows
+    cf_target = generate_target_cashflows(select_start_date, select_end_date, frequency, target_amount)
+
+    # 5. Create unified timeline
+    unified_cf = create_unified_timeline(cf_target, cf_mat, settlement_date)
+
+    # 6. Running totals
+    unified_running = calculate_running_totals(unified_cf)
+
+    # 7. Split into target and bonds
+    Y_running = unified_running["target"].values
+    C_matrix = unified_running.drop("target", axis=1).values
+
+    # 8. Solve weights
+    weights = solve_portfolio_weights(C_matrix, Y_running)
+
+    # 9. Diagnostics
+    predicted_running = C_matrix @ weights
+    residuals = Y_running - predicted_running
+    mse = float(np.mean(residuals**2))
+    r_squared = float(1 - np.sum(residuals**2) / np.sum((Y_running - np.mean(Y_running))**2))
+
+    bond_weights_df = pd.DataFrame({
+        "isin": [bond.isin for bond in filtered_bonds],
+        "name": [getattr(bond, "name", "N/A") for bond in filtered_bonds],
+        "maturity": [bond.maturity_date for bond in filtered_bonds],
+        "weight": weights,
+    })
+
+    return {
+        "unified_timeline": unified_cf.index,
+        "bond_weights": bond_weights_df,
+        "running_totals_target": unified_running["target"].values,
+        "unified_cashflows": unified_cf,
+        "unified_running_totals": unified_running,
+        "predicted_running": predicted_running,
+        "residuals": residuals,
+        "mse": mse,
+        "r_squared": r_squared,
+        "num_bonds": len(filtered_bonds),
+    }
+
+def build_portfolio_json(
+    select_start_date: date | datetime,
+    select_end_date: date | datetime,
+    settlement_date: date | datetime,
+    target_amount: float = 100,
+    frequency: str = "monthly",
+    country: str = "UK",
+    is_green: bool = False,
+    is_linker: bool = False,
+) -> dict:
+    """Wrapper: run build_portfolio() and convert results to JSON-friendly dict."""
+    result = build_portfolio(
+        select_start_date,
+        select_end_date,
+        settlement_date,
+        target_amount,
+        frequency,
+        country,
+        is_green,
+        is_linker,
+    )
+
+    # Timeline
+    timeline = [d.strftime("%Y-%m-%d") for d in result["unified_timeline"]]
+
+    # Arrays
+    running_totals_target = result["running_totals_target"].tolist()
+    predicted_running = result["predicted_running"].tolist()
+    residuals = result["residuals"].tolist()
+
+    # Bond weights
+    bond_weights = result["bond_weights"].to_dict(orient="records")
+
+    # Unified cashflows: always bring index in as "date"
+    unified_cashflows = (
+        result["unified_cashflows"]
+        .reset_index(names="date")
+        .assign(date=lambda df: pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d"))
+        .to_dict(orient="records")
+    )
+
+    return {
+        "timeline": timeline,
+        "bond_weights": bond_weights,
+        "running_totals_target": running_totals_target,
+        "predicted_running": predicted_running,
+        "residuals": residuals,
+        "mse": result["mse"],
+        "r_squared": result["r_squared"],
+        "num_bonds": result["num_bonds"],
+        "unified_cashflows": unified_cashflows,
+    }
+
