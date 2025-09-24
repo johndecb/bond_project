@@ -32,43 +32,25 @@ def get_cashflows(req: PortfolioRequest):
 # 🍳 Head chef = summary built on top of raw cashflows
 @app.post("/portfolio/summary")
 def get_portfolio_summary(req: PortfolioRequest):
-    try:
-        settlement = date.today() + timedelta(days=1)
-        select_start_date = req.start
-        select_end_date = req.start.replace(year=req.start.year + req.tenor)
+    settlement = date.today() + timedelta(days=1)
+    select_start_date = req.start
+    select_end_date = req.start.replace(year=req.start.year + req.tenor)
 
-        raw = build_portfolio_json(
-            select_start_date=select_start_date,
-            select_end_date=select_end_date,
-            settlement_date=settlement,
-            target_amount=req.amount,
-        )
+    # ✅ call the JSON wrapper
+    portfolio = build_portfolio_json(
+        select_start_date=select_start_date,
+        select_end_date=select_end_date,
+        settlement_date=settlement,
+        target_amount=req.amount,
+        frequency="monthly",
+        country="UK",
+        is_green=False,
+        is_linker=False,
+    )
 
-        # summary layer (presentation-friendly)
-        summary = {
-            "mse": raw["mse"],
-            "r_squared": raw["r_squared"],
-            "num_bonds": raw["num_bonds"],
-            "weights": raw["bond_weights"],
-            "cashflows": {
-                "portfolio": [
-                    {
-                        "date": row["date"],
-                        "cumulative": float(sum(v for k, v in row.items() if k not in ["date", "target"]))
-                    }
-                    for row in raw["unified_cashflows"]
-                ],
-                "target": [
-                    {"date": row["date"], "cumulative": row["target"]}
-                    for row in raw["unified_cashflows"]
-                ],
-            },
-        }
-        return summary
+    # ✅ No need to re-loop through iterrows, just pass through JSON
+    return portfolio
 
-    except Exception as e:
-        traceback.print_exc()
-        return {"error": str(e)}
 
 
 

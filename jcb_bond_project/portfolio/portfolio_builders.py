@@ -89,7 +89,7 @@ def generate_target_cashflows(
     target_start_date: date | datetime,
     target_end_date: date | datetime,
     frequency: str = "monthly",
-    amount: float = 1_000_000,
+    target_amount: float = 100,
 ) -> pd.DataFrame:
     """
     Generate target cashflow schedule with cashflow_date as the index.
@@ -122,7 +122,7 @@ def generate_target_cashflows(
         current_date += delta
 
     return (
-        pd.DataFrame({"target": [amount] * len(cashflow_dates)}, index=pd.to_datetime(cashflow_dates))
+        pd.DataFrame({"target": [target_amount] * len(cashflow_dates)}, index=pd.to_datetime(cashflow_dates))
         .rename_axis("cashflow_date")
     )
 
@@ -315,13 +315,19 @@ def build_portfolio(
     cf_mat = cashflow_matrix(cf_long)
 
     # 4. Generate target cashflows
-    cf_target = generate_target_cashflows(select_start_date, select_end_date, frequency, target_amount)
+    cf_target = generate_target_cashflows(
+        select_start_date, select_end_date, frequency, target_amount=100
+    )
 
     # 5. Create unified timeline
     unified_cf = create_unified_timeline(cf_target, cf_mat, settlement_date)
+    # DEBUG: export unified cashflows
+    unified_cf.to_csv("debug_unified_cf.txt", sep="\t")
 
     # 6. Running totals
     unified_running = calculate_running_totals(unified_cf)
+    # DEBUG: export running totals
+    unified_running.to_csv("debug_unified_running.txt", sep="\t")
 
     # 7. Split into target and bonds
     Y_running = unified_running["target"].values
@@ -329,6 +335,8 @@ def build_portfolio(
 
     # 8. Solve weights
     weights = solve_portfolio_weights(C_matrix, Y_running)
+    # After computing weights
+
 
     # 9. Diagnostics
     predicted_running = C_matrix @ weights
@@ -342,6 +350,8 @@ def build_portfolio(
         "maturity": [bond.maturity_date for bond in filtered_bonds],
         "weight": weights,
     })
+
+    bond_weights_df.to_csv("debug_bond_weights_df.txt", sep="\t")
 
     return {
         "unified_timeline": unified_cf.index,
@@ -378,34 +388,33 @@ def build_portfolio_json(
         is_linker,
     )
 
-    # Timeline
-    timeline = [d.strftime("%Y-%m-%d") for d in result["unified_timeline"]]
+    # ✅ Extract weights in JSON-safe format
+    weights = result["bond_weights"].to_dict(orient="records")
 
-    # Arrays
-    running_totals_target = result["running_totals_target"].tolist()
-    predicted_running = result["predicted_running"].tolist()
-    residuals = result["residuals"].tolist()
-
-    # Bond weights
-    bond_weights = result["bond_weights"].to_dict(orient="records")
-
-    # Unified cashflows: always bring index in as "date"
-    unified_cashflows = (
-        result["unified_cashflows"]
-        .reset_index(names="date")
-        .assign(date=lambda df: pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d"))
-        .to_dict(orient="records")
-    )
+    # ✅ Convert running totals into portfolio vs target series
+    cashflows_portfolio = []
+    cashflows_target = []
+    if isinstance(result["unified_running_totals"], pd.DataFrame):
+        for d, row in result["unified_running_totals"].iterrows():
+            cashflows_portfolio.append({
+                "date": d.strftime("%Y-%m-%d"),
+                "cumulative": float(row.drop("target").sum())
+            })
+            cashflows_target.append({
+                "date": d.strftime("%Y-%m-%d"),
+                "cumulative": float(row["target"])
+            })
 
     return {
-        "timeline": timeline,
-        "bond_weights": bond_weights,
-        "running_totals_target": running_totals_target,
-        "predicted_running": predicted_running,
-        "residuals": residuals,
         "mse": result["mse"],
         "r_squared": result["r_squared"],
         "num_bonds": result["num_bonds"],
-        "unified_cashflows": unified_cashflows,
+        "weights": weights,
+        "cashflows": {
+            "portfolio": cashflows_portfolio,
+            "target": cashflows_target,
+        },
     }
+
+
 
