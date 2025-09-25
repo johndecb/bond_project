@@ -246,3 +246,31 @@ def get_holidays_for_calendar(conn, calendar_name: str, _debug: bool = False) ->
         cur.execute(sql, (calendar_name,))
         rows = cur.fetchall()
     return [r[0] for r in rows]
+
+def get_latest_data(conn, instrument_id: str, data_type: str, as_of: date):
+    """
+    Fetch the latest instrument_data.value for a given instrument, data_type,
+    and settlement date (<= as_of).
+
+    Args:
+        conn: active DB connection
+        instrument_id: ISIN or internal ID
+        data_type: e.g. "dirty_price"
+        as_of: date to look back from
+
+    Returns:
+        float or None
+    """
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT value
+            FROM instruments_instrumentdata
+            WHERE instrument_id = %s
+              AND data_type = %s
+              AND data_date <= %s
+            ORDER BY data_date DESC
+            LIMIT 1
+        """, (instrument_id, data_type, as_of))
+        row = cur.fetchone()
+        return float(row[0]) if row else None
+

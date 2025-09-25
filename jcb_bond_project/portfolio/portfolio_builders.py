@@ -13,6 +13,10 @@ from jcb_bond_project.utils.jcb_calendar import BusinessDayCalendar
 from jcb_bond_project.portfolio.portfolio_optimiser import solve_portfolio_weights
 from jcb_bond_project.cashflow_model.builders import cashflows_from_instrument
 
+from jcb_bond_project.database.query import get_latest_data
+from jcb_bond_project.utils.settlement import get_settlement_date
+
+
 
 # Get DB connection string (Postgres on Render, fallback to SQLite locally)
 DB_PATH = os.getenv("DATABASE_URL", "jcb_db.db")
@@ -180,55 +184,7 @@ def calculate_running_totals(cashflow_matrix: pd.DataFrame) -> pd.DataFrame:
     """
     return cashflow_matrix.cumsum(axis=0)
 
-def create_unified_timeline(
-    cf_target: pd.DataFrame,
-    cf_mat: pd.DataFrame,
-    settlement_date: date | datetime | None = None,
-    drop_zeros: bool = True,
-) -> pd.DataFrame:
-    """
-    Create unified timeline combining target dates and bond cashflow dates.
-    Structure: rows = dates, columns = ['target'] + bond ISINs.
-
-    Args:
-        cf_target (pd.DataFrame): target schedule (index=cashflow_date, column ['target']).
-        cf_mat (pd.DataFrame): bond cashflow matrix (index=cashflow_date, columns=ISINs).
-        settlement_date (date/datetime, optional): only include dates after this.
-        drop_zeros (bool): if True, drop rows where all values are zero.
-
-    Returns:
-        pd.DataFrame: unified matrix with aligned target and bond cashflows.
-    """
-    # Normalise to DatetimeIndex
-    cf_target.index = pd.to_datetime(cf_target.index)
-    cf_mat.index = pd.to_datetime(cf_mat.index)
-
-    # Combine all dates
-    all_dates = cf_target.index.union(cf_mat.index).sort_values()
-
-    # Settlement filter
-    if settlement_date is not None:
-        settlement_date = pd.to_datetime(settlement_date)
-        all_dates = all_dates[all_dates > settlement_date]
-
-    if all_dates.empty:
-        raise ValueError("No dates found after settlement date")
-
-    # Reindex both frames
-    cf_target = cf_target.reindex(all_dates, fill_value=0.0)
-    cf_mat = cf_mat.reindex(all_dates, fill_value=0.0)
-
-    # Concatenate with target first
-    unified_cf = pd.concat([cf_target, cf_mat], axis=1)
-
-    # Optionally drop rows with all zeros
-    if drop_zeros:
-        unified_cf = unified_cf.loc[(unified_cf != 0).any(axis=1)]
-
-    return unified_cf
-
 # bond_project/portfolio/portfolio_optimiser.py
-import numpy as np
 
 def create_unified_timeline(
     cf_target: pd.DataFrame,
@@ -277,9 +233,9 @@ def create_unified_timeline(
 
     return unified_cf
 
-# bond_project/portfolio/portfolio_optimiser.py
-import numpy as np
 
+
+# bond_project/portfolio/portfolio_optimiser.py
 def build_portfolio(
     select_start_date: date | datetime,
     select_end_date: date | datetime,
@@ -310,6 +266,27 @@ def build_portfolio(
     if not filtered_bonds:
         raise ValueError("No bonds found matching maturity criteria")
 
+    # Settlement date from env var (or default today+1)
+    settlement_date = get_settlement_date()
+
+    # ⚠️ MVP version: query one price per bond
+    # TODO: replace with batch query for performance
+# 2b. Open a new connection for prices
+    with get_conn(DB_PATH) as conn:
+        prices = []
+        for bond in filtered_bonds:
+            price = get_latest_data(
+                conn,
+                instrument_id=bond.isin,
+                data_type="dirty_price",
+                as_of=settlement_date,
+            )
+            if price is None:
+                raise ValueError(f"No dirty price found for {bond.isin} as of {settlement_date}")
+            prices.append(price)
+
+    prices = np.array(prices)
+
     # 3. Generate bond cashflows
     cf_long = cashflows_df(filtered_bonds, calendar=uk)
     cf_mat = cashflow_matrix(cf_long)
@@ -333,23 +310,46 @@ def build_portfolio(
     Y_running = unified_running["target"].values
     C_matrix = unified_running.drop("target", axis=1).values
 
-    # 8. Solve weights
-    weights = solve_portfolio_weights(C_matrix, Y_running)
-    # After computing weights
+    # 8. Solve nominal weights
+    nominal_weights = solve_portfolio_weights(C_matrix, Y_running)
 
+    # 9. Scale weights to match user budget AND target cashflows
+    # Total cost of nominal weights (value invested at settlement)
+    total_cost = np.sum(nominal_weights * prices)
 
-    # 9. Diagnostics
-    predicted_running = C_matrix @ weights
+    if total_cost <= 0:
+        raise ValueError("Invalid portfolio: total cost of weights is non-positive")
+
+    # Scale factor so invested amount matches user's target_amount
+    scale_factor = target_amount / total_cost
+    scaled_weights = nominal_weights * scale_factor
+
+    # Recompute predicted running totals with scaled weights
+    predicted_running = C_matrix @ scaled_weights
     residuals = Y_running - predicted_running
+
+    # Diagnostics
     mse = float(np.mean(residuals**2))
-    r_squared = float(1 - np.sum(residuals**2) / np.sum((Y_running - np.mean(Y_running))**2))
+    r_squared = float(
+        1 - np.sum(residuals**2) / np.sum((Y_running - np.mean(Y_running))**2)
+    )
 
     bond_weights_df = pd.DataFrame({
         "isin": [bond.isin for bond in filtered_bonds],
         "name": [getattr(bond, "name", "N/A") for bond in filtered_bonds],
         "maturity": [bond.maturity_date for bond in filtered_bonds],
-        "weight": weights,
+        "nominal_weight": nominal_weights,
+        "scaled_weight": scaled_weights,
+        "price": prices,
     })
+
+    # Actual value invested (currency)
+    bond_weights_df["value_invested"] = bond_weights_df["scaled_weight"] * bond_weights_df["price"]
+
+    # Sanity check: should sum to ≈ target_amount
+    total_invested = bond_weights_df["value_invested"].sum()
+    print(f"DEBUG: Total invested = {total_invested:.2f} vs budget {target_amount}")
+
 
     bond_weights_df.to_csv("debug_bond_weights_df.txt", sep="\t")
 
@@ -389,7 +389,9 @@ def build_portfolio_json(
     )
 
     # ✅ Extract weights in JSON-safe format
-    weights = result["bond_weights"].to_dict(orient="records")
+    weights = result["bond_weights"][[
+        "isin", "name", "nominal_weight", "value_invested"
+    ]].to_dict(orient="records")
 
     # ✅ Convert running totals into portfolio vs target series
     cashflows_portfolio = []
@@ -405,11 +407,14 @@ def build_portfolio_json(
                 "cumulative": float(row["target"])
             })
 
+    total_invested = sum(w["value_invested"] for w in weights)
+
     return {
         "mse": result["mse"],
         "r_squared": result["r_squared"],
         "num_bonds": result["num_bonds"],
         "weights": weights,
+        "total_invested": total_invested,
         "cashflows": {
             "portfolio": cashflows_portfolio,
             "target": cashflows_target,
