@@ -3,10 +3,7 @@ import pathlib
 from dotenv import load_dotenv
 
 # Load .env from funderly/ before importing project code
-env_path = pathlib.Path(__file__).resolve().parents[2] / "funderly" / ".env"
-if not env_path.exists():
-    raise RuntimeError(f".env file not found at {env_path}")
-load_dotenv(dotenv_path=env_path)
+load_dotenv()
 
 # Now safe to import project modules
 from fastapi import FastAPI
