@@ -248,6 +248,7 @@ def build_portfolio(
     is_linker: bool = False,
 ) -> dict:
     """Construct portfolio weights for target cashflows."""
+
     # 1. Load and filter bonds
     with get_conn(DB_PATH) as conn:
         bonds = list_instruments(
@@ -267,12 +268,10 @@ def build_portfolio(
     if not filtered_bonds:
         raise ValueError("No bonds found matching maturity criteria")
 
-    # Settlement date from env var (or default today+1)
+    # 3. Settlement date from env var (or default today+1)
     settlement_date = get_settlement_date()
 
-    # ⚠️ MVP version: query one price per bond
-    # TODO: replace with batch query for performance
-# 2b. Open a new connection for prices
+    # 4. Query latest dirty prices for each bond
     with get_conn(DB_PATH) as conn:
         prices = []
         for bond in filtered_bonds:
@@ -288,53 +287,49 @@ def build_portfolio(
 
     prices = np.array(prices)
 
-    # 3. Generate bond cashflows
+    # 5. Generate bond cashflows
     cf_long = cashflows_df(filtered_bonds, calendar=uk)
     cf_mat = cashflow_matrix(cf_long)
 
-    # 4. Generate target cashflows
+    # 6. Generate target cashflows (initially scaled to 100)
     cf_target = generate_target_cashflows(
         select_start_date, select_end_date, frequency, target_amount=100
     )
 
-    # 5. Create unified timeline
+    # 7. Create unified timeline (bonds + target aligned)
     unified_cf = create_unified_timeline(cf_target, cf_mat, settlement_date)
-    # DEBUG: export unified cashflows
     unified_cf.to_csv("debug_unified_cf.txt", sep="\t")
 
-    # 6. Running totals
+    # 8. Running totals
     unified_running = calculate_running_totals(unified_cf)
-    # DEBUG: export running totals
-    # unified_running.to_csv("debug_unified_running.txt", sep="\t")
 
-    # 7. Split into target and bonds
+    # 9. Solve optimisation problem
+    # 9a. Split into target and bonds
     Y_running = unified_running["target"].values
     C_matrix = unified_running.drop("target", axis=1).values
 
-    # 8. Solve nominal weights
+    # 9b. Solve nominal weights
     nominal_weights = solve_portfolio_weights(C_matrix, Y_running)
 
-    # 9. Scale weights to match user budget AND target cashflows
-    # Total cost of nominal weights (value invested at settlement)
+    # 9c. Scale weights to match user budget
     total_cost = np.sum(nominal_weights * prices)
-
     if total_cost <= 0:
         raise ValueError("Invalid portfolio: total cost of weights is non-positive")
 
-    # Scale factor so invested amount matches user's target_amount
     scale_factor = target_amount / total_cost
     scaled_weights = nominal_weights * scale_factor
 
-    # Recompute predicted running totals with scaled weights
+    # 9d. Recompute predicted running totals with scaled weights
     predicted_running = C_matrix @ scaled_weights
     residuals = Y_running - predicted_running
 
-    # Diagnostics
+    # 9e. Diagnostics
     mse = float(np.mean(residuals**2))
     r_squared = float(
         1 - np.sum(residuals**2) / np.sum((Y_running - np.mean(Y_running))**2)
     )
 
+    # 10. Build weights DataFrame
     bond_weights_df = pd.DataFrame({
         "isin": [bond.isin for bond in filtered_bonds],
         "name": [getattr(bond, "name", "N/A") for bond in filtered_bonds],
@@ -343,29 +338,39 @@ def build_portfolio(
         "scaled_weight": scaled_weights,
         "price": prices,
     })
-
-    # Actual value invested (currency)
     bond_weights_df["value_invested"] = bond_weights_df["scaled_weight"] * bond_weights_df["price"]
 
-    # Sanity check: should sum to ≈ target_amount
     total_invested = bond_weights_df["value_invested"].sum()
     print(f"DEBUG: Total invested = {total_invested:.2f} vs budget {target_amount}")
-
-
     bond_weights_df.to_csv("debug_bond_weights_df.txt", sep="\t")
+
+    # 11. Add portfolio_total column
+    unified_running["portfolio_total"] = unified_running.drop(columns=["target"]).sum(axis=1)
+
+    # 12. Scale to actual invested amount
+    portfolio_final = unified_running["portfolio_total"].iloc[-1]
+    if portfolio_final > 0:
+        scaling_factor = total_invested / portfolio_final
+    else:
+        scaling_factor = 1.0
+
+    unified_running["portfolio_total"] *= scaling_factor
+    unified_running["target_scaled"] = unified_running["target"] * (total_invested / unified_running["target"].iloc[-1])
+
 
     return {
         "unified_timeline": unified_cf.index,
         "bond_weights": bond_weights_df,
         "running_totals_target": unified_running["target"].values,
         "unified_cashflows": unified_cf,
-        "unified_running_totals": unified_running,
+        "unified_running_totals": unified_running,  # now includes portfolio_total
         "predicted_running": predicted_running,
         "residuals": residuals,
         "mse": mse,
         "r_squared": r_squared,
         "num_bonds": len(filtered_bonds),
     }
+
 
 def build_portfolio_json(
     select_start_date: date | datetime,
@@ -406,17 +411,18 @@ def build_portfolio_json(
     # Add explicit portfolio_total column
     df["portfolio_total"] = df.drop(columns=["target"]).sum(axis=1)
 
+    df = result["unified_running_totals"]
+
     cashflows = {
         "portfolio": [
             {"date": d.strftime("%Y-%m-%d"), "cumulative": float(row["portfolio_total"])}
             for d, row in df.iterrows()
         ],
         "target": [
-            {"date": d.strftime("%Y-%m-%d"), "cumulative": float(row["target"])}
+            {"date": d.strftime("%Y-%m-%d"), "cumulative": float(row["target_scaled"])}
             for d, row in df.iterrows()
         ],
     }
-
 
     return {
         "mse": result["mse"],
