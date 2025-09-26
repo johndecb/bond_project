@@ -3,6 +3,7 @@ from datetime import date, datetime
 from typing import List, Dict, Optional, Any
 import pandas as pd
 import numpy as np
+import pathlib
 
 from dateutil.relativedelta import relativedelta
 
@@ -304,7 +305,7 @@ def build_portfolio(
     # 6. Running totals
     unified_running = calculate_running_totals(unified_cf)
     # DEBUG: export running totals
-    unified_running.to_csv("debug_unified_running.txt", sep="\t")
+    # unified_running.to_csv("debug_unified_running.txt", sep="\t")
 
     # 7. Split into target and bonds
     Y_running = unified_running["target"].values
@@ -389,37 +390,43 @@ def build_portfolio_json(
     )
 
     # ✅ Extract weights in JSON-safe format
-    weights = result["bond_weights"][[
-        "isin", "name", "nominal_weight", "value_invested"
-    ]].to_dict(orient="records")
+    weights = result["bond_weights"]
 
-    # ✅ Convert running totals into portfolio vs target series
-    cashflows_portfolio = []
-    cashflows_target = []
-    if isinstance(result["unified_running_totals"], pd.DataFrame):
-        for d, row in result["unified_running_totals"].iterrows():
-            cashflows_portfolio.append({
-                "date": d.strftime("%Y-%m-%d"),
-                "cumulative": float(row.drop("target").sum())
-            })
-            cashflows_target.append({
-                "date": d.strftime("%Y-%m-%d"),
-                "cumulative": float(row["target"])
-            })
+    # 🔍 DEBUG: export weights DataFrame to file
+    # debug_path = pathlib.Path("debug_weights_json.txt")
+    # weights.to_csv(debug_path, sep="\t", index=False)
 
-    total_invested = sum(w["value_invested"] for w in weights)
+    # Convert to JSON-safe format
+    weights = weights[["isin", "name", "nominal_weight", "value_invested"]].copy()
+    weights["nominal_weight"] = weights["nominal_weight"] * 100
+    weights_dicts = weights.to_dict(orient="records")
+
+    df = result["unified_running_totals"].copy()
+
+    # Add explicit portfolio_total column
+    df["portfolio_total"] = df.drop(columns=["target"]).sum(axis=1)
+
+    cashflows = {
+        "portfolio": [
+            {"date": d.strftime("%Y-%m-%d"), "cumulative": float(row["portfolio_total"])}
+            for d, row in df.iterrows()
+        ],
+        "target": [
+            {"date": d.strftime("%Y-%m-%d"), "cumulative": float(row["target"])}
+            for d, row in df.iterrows()
+        ],
+    }
+
 
     return {
         "mse": result["mse"],
         "r_squared": result["r_squared"],
         "num_bonds": result["num_bonds"],
-        "weights": weights,
-        "total_invested": total_invested,
-        "cashflows": {
-            "portfolio": cashflows_portfolio,
-            "target": cashflows_target,
-        },
+        "weights": weights_dicts,
+        "total_invested": float(sum(w["value_invested"] for w in weights_dicts)),
+        "cashflows": cashflows
     }
+
 
 
 
