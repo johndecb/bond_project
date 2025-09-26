@@ -1,6 +1,7 @@
 # Django + database
 django>=5.0,<6.0
 psycopg2-binary>=2.9
+django-widget-tweaks
 
 # Core dependencies from jcb_bond_project
 numpy>=1.26
