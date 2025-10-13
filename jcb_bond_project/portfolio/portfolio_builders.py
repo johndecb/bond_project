@@ -398,6 +398,7 @@ def build_portfolio_json(
     country: str = "UK",
     is_green: bool = False,
     is_linker: bool = False,
+    debug: bool = False,  # 👈 ADD THIS
 ) -> dict:
     """Wrapper: run build_portfolio() and convert results to JSON-friendly dict."""
     result = build_portfolio(
@@ -438,12 +439,12 @@ def build_portfolio_json(
         ],
     }
 
-
-    return {
+    # --- Standard API payload ---
+    response = {
         "mse": result["mse"],
         "r_squared": result["r_squared"],
         "num_bonds": result["num_bonds"],
-        "weights": lsq_weights,          # ✅ for the table
+        "weights": lsq_weights,
         "lsq_weights": lsq_weights,
         "opt_weights": opt_weights,
         "opt_success": result["opt_success"],
@@ -452,6 +453,13 @@ def build_portfolio_json(
         "cashflows": cashflows,
     }
 
+    # --- 🔍 Debug-only addition ---
+    if debug:
+        cf_full = result["unified_cashflows"].reset_index()
+        cf_full["cashflow_date"] = cf_full.index.astype(str)
+        response["unified_cashflows"] = cf_full.to_dict(orient="records")
+
+    return response
 
 
 

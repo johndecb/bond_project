@@ -7,6 +7,7 @@ load_dotenv()
 
 # Now safe to import project modules
 from fastapi import FastAPI
+from fastapi import Request
 from pydantic import BaseModel
 from datetime import date, timedelta
 import traceback
@@ -39,13 +40,20 @@ def get_cashflows(req: PortfolioRequest):
     )
 
 # 🍳 Head chef = summary built on top of raw cashflows
+
+
 @app.post("/portfolio/summary")
-def get_portfolio_summary(req: PortfolioRequest):
+def get_portfolio_summary(req: PortfolioRequest, request: Request):
+    """Return portfolio summary. If ?debug=1, include full unified_cashflows."""
+    # --- existing logic ---
     settlement = date.today() + timedelta(days=1)
     select_start_date = req.start
     select_end_date = req.start.replace(year=req.start.year + req.tenor)
 
-    # ✅ call the JSON wrapper
+    # --- new: check for debug flag ---
+    debug = request.query_params.get("debug") == "1"
+
+    # --- call the JSON wrapper with debug flag ---
     portfolio = build_portfolio_json(
         select_start_date=select_start_date,
         select_end_date=select_end_date,
@@ -55,9 +63,9 @@ def get_portfolio_summary(req: PortfolioRequest):
         country="UK",
         is_green=False,
         is_linker=False,
+        debug=debug,  # 👈 pass it through
     )
 
-    # ✅ No need to re-loop through iterrows, just pass through JSON
     return portfolio
 
 

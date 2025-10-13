@@ -28,3 +28,51 @@ def solve_portfolio_weights(C_matrix, Y_vector):
     weights_norm = weights / weights.sum()
 
     return weights_norm
+
+class DummyResult:
+    """Minimal stand-in for scipy.optimize result object."""
+    def __init__(self, x, success=True, fun=0.0):
+        self.x = x
+        self.success = success
+        self.fun = fun
+
+
+def optimise_bond_portfolio(
+    nominal_weights: np.ndarray,
+    C_matrix: np.ndarray,
+    dates,
+    prices: np.ndarray,
+    amount: float,
+    *,
+    r_pos: float = 0.02,
+    r_neg: float = -0.50,
+) -> DummyResult:
+    """
+    Placeholder for nonlinear bond portfolio optimisation.
+    Currently just returns the LSQ weights unchanged.
+
+    Args:
+        nominal_weights: np.ndarray of LSQ solution.
+        C_matrix: matrix of cumulative cashflows (dates x bonds).
+        dates: timeline of cashflows.
+        prices: current dirty prices per bond.
+        amount: target investment amount.
+        r_pos/r_neg: positive/negative balance annualised rates.
+
+    Returns:
+        DummyResult with .x (weights), .success, and .fun.
+    """
+
+    # For now, simply return LSQ weights as-is
+    x = np.copy(nominal_weights)
+    success = True
+
+    # Optionally simulate a "final balance" just for reporting
+    predicted_running = C_matrix @ x
+    final_balance = float(predicted_running[-1])
+
+    # Negative fun since typical optimisers minimise -objective
+    fun = -final_balance
+
+    return DummyResult(x=x, success=success, fun=fun)
+
