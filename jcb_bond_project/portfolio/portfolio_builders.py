@@ -11,7 +11,10 @@ from jcb_bond_project.models.instrument import Instrument
 from jcb_bond_project.database.db import get_conn
 from jcb_bond_project.database.query import list_instruments, get_holidays_for_calendar
 from jcb_bond_project.utils.jcb_calendar import BusinessDayCalendar
-from jcb_bond_project.portfolio.portfolio_optimiser import solve_portfolio_weights
+from jcb_bond_project.portfolio.portfolio_optimiser import (
+    solve_portfolio_weights,
+    optimise_bond_portfolio,   # ✅ import new optimiser
+)
 from jcb_bond_project.cashflow_model.builders import cashflows_from_instrument
 
 from jcb_bond_project.database.query import get_latest_data
@@ -323,23 +326,17 @@ def build_portfolio(
     # 9d. Recompute predicted running totals with scaled weights
     predicted_running = C_matrix @ bond_nominals
 
-    # DEBUG: export predicted running with dates
-    pd.DataFrame({
-        "date": unified_running.index,
-        "predicted_running": predicted_running
-    }).to_csv("debug_predicted_running.txt", sep="\t", index=False)
-    
     # Rescale target so it ends at the same level as predicted
     target_running = Y_running * (predicted_running[-1] / Y_running[-1])
     residuals = target_running - predicted_running
 
-    # 9e. Diagnostics
+    # Diagnostics
     mse = float(np.mean(residuals**2))
     r_squared = float(
         1 - np.sum(residuals**2) / np.sum((Y_running - np.mean(Y_running))**2)
     )
 
-    # 10. Build weights DataFrame
+    # Build weights DataFrame for LSQ
     bond_weights_df = pd.DataFrame({
         "isin": [bond.isin for bond in filtered_bonds],
         "name": [getattr(bond, "name", "N/A") for bond in filtered_bonds],
@@ -350,25 +347,45 @@ def build_portfolio(
     })
     bond_weights_df["value_invested"] = bond_weights_df["bond_nominals"] * bond_weights_df["price"]
 
-    # 11. Add portfolio_total column
+    # ✅ Run nonlinear optimisation (second stage)
+    res = optimise_bond_portfolio(nominal_weights, C_matrix, unified_running.index, prices, amount)
 
-    # 12. Scale to actual invested amount
+    opt_weights = res.x if res.success else np.zeros_like(prices)
+    opt_total_cost = np.sum(opt_weights * prices)
+    opt_final_balance = -res.fun if res.success else None
 
+    opt_weights_df = pd.DataFrame({
+        "isin": [bond.isin for bond in filtered_bonds],
+        "name": [getattr(bond, "name", "N/A") for bond in filtered_bonds],
+        "maturity": [bond.maturity_date for bond in filtered_bonds],
+        "opt_nominal_weight": opt_weights,
+        "opt_value_invested": opt_weights * prices,
+    })
+
+    # ✅ Compute optimised running totals
+    opt_predicted_running = C_matrix @ opt_weights if res.success else np.zeros_like(predicted_running)
+    unified_running["opt_portfolio_total"] = opt_predicted_running
     unified_running["portfolio_total"] = predicted_running
     unified_running["target_running"] = target_running
 
-
     return {
+        # Common diagnostics
         "unified_timeline": unified_cf.index,
-        "bond_weights": bond_weights_df,
-        "target_running": target_running,
         "unified_cashflows": unified_cf,
-        "unified_running_totals": unified_running,  # includes portfolio_total + target_running
-        "predicted_running": predicted_running,
+        "unified_running_totals": unified_running,
+        "target_running": target_running,
         "residuals": residuals,
         "mse": mse,
         "r_squared": r_squared,
         "num_bonds": len(filtered_bonds),
+
+        # LSQ results
+        "bond_weights": bond_weights_df,
+
+        # Optimised results
+        "opt_success": bool(res.success),
+        "opt_final_balance": float(-res.fun) if res.success else None,
+        "opt_weights": opt_weights_df,
     }
 
 
@@ -394,21 +411,25 @@ def build_portfolio_json(
         is_linker,
     )
 
-    # ✅ Extract weights in JSON-safe format
-    weights = result["bond_weights"]
+    # LSQ weights
+    weights = result["bond_weights"][["isin", "name", "nominal_weight", "value_invested"]].copy()
+    weights["nominal_weight"] *= 100
+    lsq_weights = weights.to_dict(orient="records")
 
+    # Optimised weights
+    opt_weights = result["opt_weights"][["isin", "name", "opt_nominal_weight", "opt_value_invested"]].copy()
+    opt_weights["opt_nominal_weight"] *= 100
+    opt_weights = opt_weights.to_dict(orient="records")
 
-    # Convert to JSON-safe format
-    weights = weights[["isin", "name", "nominal_weight", "value_invested"]].copy()
-    weights["nominal_weight"] = weights["nominal_weight"] * 100
-    weights_dicts = weights.to_dict(orient="records")
-
-    # Add explicit portfolio_total column
     df = result["unified_running_totals"]
 
     cashflows = {
-        "portfolio": [
+        "lsq_portfolio": [
             {"date": d.strftime("%Y-%m-%d"), "cumulative": float(row["portfolio_total"])}
+            for d, row in df.iterrows()
+        ],
+        "opt_portfolio": [
+            {"date": d.strftime("%Y-%m-%d"), "cumulative": float(row["opt_portfolio_total"])}
             for d, row in df.iterrows()
         ],
         "target": [
@@ -417,13 +438,18 @@ def build_portfolio_json(
         ],
     }
 
+
     return {
         "mse": result["mse"],
         "r_squared": result["r_squared"],
         "num_bonds": result["num_bonds"],
-        "weights": weights_dicts,
-        "total_invested": float(sum(w["value_invested"] for w in weights_dicts)),
-        "cashflows": cashflows
+        "weights": lsq_weights,          # ✅ for the table
+        "lsq_weights": lsq_weights,
+        "opt_weights": opt_weights,
+        "opt_success": result["opt_success"],
+        "opt_final_balance": result["opt_final_balance"],
+        "total_invested": float(sum(w["value_invested"] for w in lsq_weights)),
+        "cashflows": cashflows,
     }
 
 
