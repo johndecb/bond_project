@@ -455,9 +455,10 @@ def build_portfolio_json(
 
     # --- 🔍 Debug-only addition ---
     if debug:
-        cf_full = result["unified_cashflows"].reset_index()
-        cf_full["cashflow_date"] = pd.to_datetime(cf_full.index).strftime("%Y-%m-%d")
-        response["unified_cashflows"] = cf_full.to_dict(orient="records")
+        # cf_full = result["unified_cashflows"].reset_index()
+        # cf_full["cashflow_date"] = pd.to_datetime(cf_full.index).strftime("%Y-%m-%d")
+        # response["unified_cashflows"] = cf_full.to_dict(orient="records")
+        response["unified_cashflows"] = result["unified_cashflows"]
 
     return response
 
